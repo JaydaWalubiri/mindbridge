@@ -1,0 +1,16 @@
+{% load static %}<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}MindBridge{% endblock %} · Care workspace</title>
+<link rel="stylesheet" href="{% static 'care/app.css' %}"></head>
+<body><div class="app">
+<aside class="sidebar"><a class="brand" href="{% url 'dashboard' %}"><span class="brand-mark">✳</span><span>MindBridge<small>CARE WORKSPACE</small></span></a>
+<div class="nav-label">WORKSPACE</div><nav aria-label="Main navigation">
+<a class="nav-item {% if active == 'dashboard' %}selected{% endif %}" href="{% url 'dashboard' %}"><span>▦</span> Overview</a>
+<a class="nav-item {% if active == 'alerts' %}selected{% endif %}" href="{% url 'alerts' %}"><span>◇</span> Alerts</a>
+<a class="nav-item {% if active == 'participants' %}selected{% endif %}" href="{% url 'participants' %}"><span>♧</span> Participants</a>
+<a class="nav-item {% if active == 'sessions' %}selected{% endif %}" href="{% url 'sessions' %}"><span>▣</span> Sessions</a>
+{% if user.is_staff %}<a class="nav-item {% if active == 'admin' %}selected{% endif %}" href="{% url 'admin_dashboard' %}"><span>⚙</span> Admin dashboard</a>{% endif %}
+</nav><div class="sidebar-bottom"><div class="avatar">{{ user.username|first|upper }}</div><div><strong>{{ user.get_full_name|default:user.username }}</strong><small>{% if user.is_staff %}Administrator{% else %}Counsellor{% endif %}</small></div></div></aside>
+<div class="main-wrap"><header class="topbar"><span class="topbar-title">Counsellor portal <span class="topbar-sep">/</span> {% block crumb %}Overview{% endblock %}</span><div class="top-actions"><span class="private-pill">● Private workspace</span><form action="{% url 'logout' %}" method="post">{% csrf_token %}<button class="text-button" type="submit">Sign out</button></form></div></header>
+<main class="content">{% if messages %}{% for message in messages %}<div class="notice" role="status">{{ message }}</div>{% endfor %}{% endif %}{% block content %}{% endblock %}</main></div></div>
+</body></html>
