@@ -1,7 +1,6 @@
 import json
 import uuid
 from json import JSONDecodeError
-from urllib.error import URLError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.admin.views.decorators import staff_member_required
@@ -14,8 +13,8 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from .forms import SessionForm
-from .models import Keyword, Participant, RiskAlert, Session, SessionRequest
-from .services import process_message, send_turn_text, valid_turn_signature
+from .models import Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest
+from .services import process_message, queue_session_confirmation, valid_turn_signature
 
 
 def assigned(user):
@@ -96,7 +95,10 @@ def book_session(request, pk):
         session.participant = person
         session.counsellor = person.counsellor if request.user.is_staff and person.counsellor_id else request.user
         session.save()
-        messages.success(request, "Session scheduled. Send confirmation through the approved WhatsApp workflow once connected.")
+        SessionRequest.objects.filter(participant=person, status="pending").update(status="handled")
+        queued = queue_session_confirmation(session)
+        messages.success(request, "Session scheduled. Confirmation queued for WhatsApp." if queued else
+                         "Session scheduled. Contact the participant to confirm the time; no approved template or recent conversation is available.")
         return redirect("sessions")
     return render(request, "care/book_session.html", {"person": person, "form": form, "active": "sessions"})
 
@@ -110,17 +112,11 @@ def admin_dashboard(request):
         "open_count": RiskAlert.objects.filter(status="open").count(),
         "pending": SessionRequest.objects.filter(status="pending").select_related("participant")[:8],
         "keywords": Keyword.objects.filter(is_active=True).count(),
+        "outbound_pending": OutboundMessage.objects.filter(status="pending").count(),
+        "outbound_failed": OutboundMessage.objects.filter(status="failed").count(),
+        "turn_ready": bool(settings.TURN_WEBHOOK_SECRET and settings.TURN_API_TOKEN),
+        "template_ready": bool(settings.TURN_TEMPLATE_NAMESPACE and settings.TURN_CHECKIN_TEMPLATE_NAME),
     })
-
-
-@staff_member_required
-@require_POST
-def handle_session_request(request, pk):
-    item = get_object_or_404(SessionRequest, pk=pk)
-    item.status = "handled"
-    item.save(update_fields=["status"])
-    messages.success(request, "Request marked handled. Arrange the appointment with the participant.")
-    return redirect("admin_dashboard")
 
 
 def whatsapp_preview(request):
@@ -141,22 +137,26 @@ def turn_webhook(request):
         payload = json.loads(request.body)
     except (JSONDecodeError, UnicodeDecodeError):
         return JsonResponse({"error": "invalid json"}, status=400)
+    if not isinstance(payload, dict) or not isinstance(payload.get("messages", []), list):
+        return JsonResponse({"error": "invalid messages"}, status=400)
     processed = 0
     for message in payload.get("messages", [])[:25]:
-        if message.get("type") != "text" or not message.get("id") or not message.get("from"):
+        if not isinstance(message, dict):
+            continue
+        if message.get("type") not in ("text", "interactive") or not message.get("id") or not message.get("from"):
+            continue
+        if message["type"] == "interactive":
+            choice = message.get("interactive", {}).get("button_reply") or message.get("interactive", {}).get("list_reply") or {}
+            body = choice.get("id") or choice.get("title", "")
+        else:
+            body = message.get("text", {}).get("body", "")
+        if not isinstance(body, str) or not body.strip():
             continue
         wa_id = str(message["from"])[:32]
         person, _ = Participant.objects.get_or_create(wa_id=wa_id, defaults={
             "code": "MB-" + uuid.uuid4().hex[:12].upper(),
             "display_name": "Participant " + uuid.uuid4().hex[:6].upper(),
         })
-        incoming, _ = process_message(person, message.get("text", {}).get("body", ""), str(message["id"])[:128])
+        process_message(person, body, str(message["id"])[:128])
         processed += 1
-        if incoming.reply and not incoming.delivered and settings.TURN_API_TOKEN:
-            try:
-                if send_turn_text(wa_id, incoming.reply):
-                    incoming.delivered = True
-                    incoming.save(update_fields=["delivered"])
-            except (URLError, TimeoutError, OSError):
-                pass
     return JsonResponse({"received": processed})

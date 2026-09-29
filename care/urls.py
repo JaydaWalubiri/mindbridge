@@ -10,7 +10,6 @@ urlpatterns = [
     path("participants/<int:pk>/sessions/new/", views.book_session, name="book_session"),
     path("sessions/", views.sessions, name="sessions"),
     path("workspace-admin/", views.admin_dashboard, name="admin_dashboard"),
-    path("workspace-admin/requests/<int:pk>/handled/", views.handle_session_request, name="handle_session_request"),
     path("preview/whatsapp/", views.whatsapp_preview, name="whatsapp_preview"),
     path("webhooks/turn/", views.turn_webhook, name="turn_webhook"),
 ]

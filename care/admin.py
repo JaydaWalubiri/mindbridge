@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import InboundMessage, Keyword, MoodEntry, Participant, RiskAlert, Session, SessionRequest
+from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WeeklyCheckIn
 
 @admin.register(Participant)
 class ParticipantAdmin(admin.ModelAdmin):
@@ -38,3 +38,20 @@ class InboundMessageAdmin(admin.ModelAdmin):
 class SessionRequestAdmin(admin.ModelAdmin):
     list_display = ("participant", "requested_at", "status")
     list_filter = ("status",)
+
+@admin.register(OutboundMessage)
+class OutboundMessageAdmin(admin.ModelAdmin):
+    list_display = ("participant", "status", "attempts", "next_attempt_at", "sent_at")
+    list_filter = ("status",)
+    readonly_fields = ("participant", "inbound", "dedupe_key", "payload", "status", "attempts",
+                       "next_attempt_at", "provider_message_id", "last_error", "created_at", "sent_at")
+    def has_add_permission(self, request):
+        return False
+
+@admin.register(WeeklyCheckIn)
+class WeeklyCheckInAdmin(admin.ModelAdmin):
+    list_display = ("participant", "week_start", "status")
+    list_filter = ("status", "week_start")
+    readonly_fields = ("participant", "week_start", "status", "created_at")
+    def has_add_permission(self, request):
+        return False

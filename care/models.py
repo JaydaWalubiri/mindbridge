@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
+from django.utils import timezone
 
 
 class Participant(models.Model):
@@ -13,6 +14,8 @@ class Participant(models.Model):
     wa_id = models.CharField(max_length=32, unique=True, null=True, blank=True,
                              help_text="WhatsApp sender ID; use a restricted database in real deployments.")
     consented = models.BooleanField(default=False)
+    consented_at = models.DateTimeField(null=True, blank=True)
+    last_inbound_at = models.DateTimeField(null=True, blank=True)
     preferred_language = models.CharField(max_length=12, default="en")
     flow_state = models.CharField(max_length=20, default="menu")
 
@@ -90,3 +93,34 @@ class SessionRequest(models.Model):
 
     class Meta:
         ordering = ["-requested_at"]
+
+
+class OutboundMessage(models.Model):
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="outbound_messages")
+    inbound = models.OneToOneField(InboundMessage, on_delete=models.CASCADE, null=True, blank=True,
+                                   related_name="outbound_message")
+    dedupe_key = models.CharField(max_length=180, unique=True)
+    payload = models.JSONField()
+    status = models.CharField(max_length=12, choices=[("pending", "Pending"), ("sent", "Sent"),
+                               ("failed", "Failed"), ("cancelled", "Cancelled")], default="pending")
+    attempts = models.PositiveSmallIntegerField(default=0)
+    next_attempt_at = models.DateTimeField(default=timezone.now)
+    provider_message_id = models.CharField(max_length=128, blank=True)
+    last_error = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+class WeeklyCheckIn(models.Model):
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="weekly_checkins")
+    week_start = models.DateField()
+    status = models.CharField(max_length=12, choices=[("pending", "Pending"), ("completed", "Completed"),
+                               ("missed", "Missed")], default="pending")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["participant", "week_start"], name="unique_weekly_checkin")]
+        ordering = ["-week_start"]
