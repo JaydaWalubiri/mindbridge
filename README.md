@@ -26,7 +26,7 @@ For PostgreSQL, set `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGR
 
 1. In Turn.io, create a `whatsapp` inbound webhook pointing to your HTTPS URL ending `/webhooks/turn/`.
 2. Configure `TURN_WEBHOOK_SECRET` with the webhook HMAC secret and `TURN_API_TOKEN` with a scoped API token in your deployment environment. Never commit these values.
-3. Reply `START` to opt in; then use `1` for mood, `2` for a session request, `HELP` for options, and `STOP` to pause. The signed webhook accepts text messages, stores the message ID for retry safety, and sends a reply via Turn's `/v1/messages` API if a token is configured.
+3. The first message prompts for explicit consent. Reply `I agree` to opt in, then send a mood score from `1` to `5`. An additional note is optional; a participant can write `Talk to a counsellor` or `Check in again` at any time, and `Pause check-ins` withdraws consent. The preview displays suggested reply buttons; the signed webhook currently sends text prompts and accepts those same phrases. The webhook stores the message ID for retry safety and sends a reply via Turn's `/v1/messages` API if a token is configured.
 4. Assign newly registered participants to a counsellor in the admin interface. No automatic assignment or outbound scheduled prompts are implemented yet.
 
 The flow is described in [ARCHITECTURE.md](docs/ARCHITECTURE.md). Local tests work without a Turn account: `python manage.py test`.
