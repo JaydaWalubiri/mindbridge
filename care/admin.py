@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WeeklyCheckIn
 
 @admin.register(Participant)
@@ -45,6 +46,13 @@ class OutboundMessageAdmin(admin.ModelAdmin):
     list_filter = ("status",)
     readonly_fields = ("participant", "inbound", "dedupe_key", "payload", "status", "attempts",
                        "next_attempt_at", "provider_message_id", "last_error", "created_at", "sent_at")
+    actions = ["retry_failed"]
+
+    @admin.action(description="Retry selected failed messages")
+    def retry_failed(self, request, queryset):
+        count = queryset.filter(status="failed").update(status="pending", attempts=0,
+                                                          next_attempt_at=timezone.now(), last_error="")
+        self.message_user(request, f"Queued {count} failed messages for retry.")
     def has_add_permission(self, request):
         return False
 

@@ -137,8 +137,8 @@ def run_weekly_checkins(today=None):
     week = today - timedelta(days=today.weekday())
     created = missed = 0
     for person in Participant.objects.filter(consented=True, wa_id__isnull=False):
-        start = max(person.consented_at.date() if person.consented_at else person.created_at.date(),
-                    person.created_at.date())
+        # Older opted-in rows have no consent timestamp; do not invent missed history.
+        start = timezone.localtime(person.consented_at).date() if person.consented_at else week
         first_week = start - timedelta(days=start.weekday())
         current = first_week
         while current <= week:
