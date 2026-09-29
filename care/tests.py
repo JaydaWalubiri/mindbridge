@@ -27,7 +27,7 @@ class WebhookTests(TestCase):
         self.assertFalse(Participant.objects.exists())
 
     def test_opt_in_mood_note_and_session_request(self):
-        for idx, body in enumerate(["START", "1", "3", "A little tired", "2"], 1):
+        for idx, body in enumerate(["Hello", "I agree", "3", "A little tired", "Talk to a counsellor"], 1):
             self.assertEqual(self.send(body, f"msg-{idx}").status_code, 200)
         person = Participant.objects.get(wa_id="254700000001")
         self.assertTrue(person.consented)
@@ -38,16 +38,18 @@ class WebhookTests(TestCase):
         self.send("2", "msg-5")
         self.assertEqual(SessionRequest.objects.filter(participant=person).count(), 1)
         self.assertEqual(InboundMessage.objects.count(), 5)
-        self.send("STOP", "msg-6")
+        self.send("Pause check-ins", "msg-6")
         person.refresh_from_db()
         self.assertFalse(person.consented)
+        self.send("3", "msg-7")
+        self.assertEqual(person.moods.count(), 1)
 
     def test_mood_rule_creates_one_review_alert(self):
-        self.send("START", "start")
+        self.send("I agree", "start")
         for n in range(3):
-            self.send("MOOD", f"mood-{n}")
+            if n:
+                self.send("Check in again", f"mood-{n}")
             self.send("2", f"score-{n}")
-            self.send("SKIP", f"skip-{n}")
         self.assertEqual(MoodEntry.objects.count(), 3)
         self.assertEqual(RiskAlert.objects.filter(reason="Mood pattern review").count(), 1)
 

@@ -10,8 +10,12 @@ from django.db import transaction
 from django.utils import timezone
 from .models import InboundMessage, Keyword, MoodEntry, Participant, RiskAlert, SessionRequest
 
-WELCOME = ("Welcome to MindBridge. Reply 1 for a mood check-in, 2 to request a counsellor "
-           "session, or HELP to see these options again. You can reply STOP to pause check-ins.")
+CONSENT = ("Welcome to MindBridge. We can save your check-ins so a counsellor can review them. "
+           "Is that okay? Reply 'I agree' to continue, or 'not now'.")
+WELCOME = ("How are you feeling today? Send a number from 1 (very low) to 5 (very good). "
+           "You can also ask for a counsellor at any time.")
+AFTER_MOOD = ("Thank you for checking in. If you'd like to share more, just write a message. "
+              "You can also ask for a counsellor or check in again whenever you want.")
 SUPPORT = ("Thanks for reaching out. A counsellor will review your message. "
            "If you need immediate help, contact a trusted adult or local emergency service now.")
 
@@ -65,40 +69,37 @@ def process_message(participant, body, external_id):
         text = body.strip()[:4000]
         incoming = InboundMessage.objects.create(external_id=external_id, participant=participant, body=text)
         command = text.casefold()
-        if command == "stop":
+        if command in ("stop", "pause", "pause check-ins", "not now"):
             participant.consented = False
             participant.flow_state = "menu"
-            reply = "Check-ins paused. Reply START if you want to use MindBridge again."
+            reply = "That's okay. Check-ins are paused. Message us whenever you're ready to continue."
         elif not participant.consented:
-            if command == "start":
+            if command in ("i agree", "yes, i agree"):
                 participant.consented = True
+                participant.flow_state = "mood"
                 reply = WELCOME
             else:
-                reply = "Reply START to use MindBridge. Your check-ins will begin only after you opt in."
-        elif command in ("help", "menu", "hi", "hello"):
+                reply = CONSENT
+        elif command in ("counsellor", "talk to a counsellor", "talk to counsellor", "session"):
+            SessionRequest.objects.create(participant=participant)
             participant.flow_state = "menu"
+            reply = "Your request has been recorded. A counsellor will follow up. You can write to us again whenever you need to."
+        elif command in ("check in", "check in again", "check-in", "mood"):
+            participant.flow_state = "mood"
             reply = WELCOME
         elif participant.flow_state == "mood" and command in ("1", "2", "3", "4", "5"):
             MoodEntry.objects.create(participant=participant, score=int(command), recorded_at=timezone.now())
             participant.flow_state = "note"
-            reply = "Thank you for checking in. You can share a short note, or reply SKIP."
+            reply = AFTER_MOOD
         elif participant.flow_state == "note":
             participant.flow_state = "menu"
-            note = "" if command == "skip" else text
             latest = participant.moods.order_by("-recorded_at").first()
             if latest:
-                latest.note = note
+                latest.note = text
                 latest.save(update_fields=["note"])
-            reply = "Thank you. Your check-in is saved. Reply HELP for options."
-        elif command in ("1", "mood"):
-            participant.flow_state = "mood"
-            reply = "How are you feeling today? Reply with a number from 1 (very low) to 5 (very good)."
-        elif command in ("2", "session"):
-            SessionRequest.objects.create(participant=participant)
-            participant.flow_state = "menu"
-            reply = "Your session request has been recorded. A counsellor will follow up. Reply HELP for options."
+            reply = "Thank you for sharing. A counsellor can review your note. You can check in again or ask for a counsellor."
         else:
-            reply = WELCOME
+            reply = "You can check in about your mood or ask for a counsellor. Tell us which you'd like."
         participant.save(update_fields=["consented", "flow_state"])
         signal = risk_signals(participant, text) if participant.consented else None
         if signal:
