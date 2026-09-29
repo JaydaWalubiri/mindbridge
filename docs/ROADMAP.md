@@ -6,7 +6,9 @@
 - [x] Counsellor overview, participant profiles, mood history, alerts, and sessions
 - [x] Administrator dashboard and account/keyword management through Django admin
 - [x] WhatsApp flow preview and signed Turn.io webhook
-- [x] Basic access and webhook tests
+- [x] Outbound queue, retries, weekly schedule and missed check-in alerts
+- [x] Interactive consent buttons and session confirmation routing
+- [x] Access, webhook, queue and schedule tests
 
 ## 2. Model integration
 
@@ -18,7 +20,7 @@
 ## 3. Pilot readiness
 
 - [ ] Connect a test Turn.io number and validate real inbound/outbound delivery
-- [ ] Add scheduled weekly check-ins and missed-check-in logic
-- [ ] Add staff notifications, assignment workflow, and response-time monitoring
+- [ ] Validate templates, real webhook and worker with a Turn.io test number
+- [ ] Add staff notifications, automatic assignment policy, and response-time monitoring
 - [ ] Finalize consent, retention, deletion, encryption, access audit, and safeguarding procedures
 - [ ] Conduct supervised usability and security testing before any real pilot
