@@ -31,7 +31,7 @@ class KeywordAdmin(admin.ModelAdmin):
 @admin.register(InboundMessage)
 class InboundMessageAdmin(admin.ModelAdmin):
     list_display = ("external_id", "participant", "received_at", "delivered")
-    readonly_fields = ("external_id", "participant", "body", "received_at", "reply", "delivered")
+    readonly_fields = ("external_id", "participant", "body", "received_at", "reply", "delivered", "sentiment_label", "sentiment_score")
     def has_add_permission(self, request):
         return False
 
@@ -61,5 +61,35 @@ class WeeklyCheckInAdmin(admin.ModelAdmin):
     list_display = ("participant", "week_start", "status")
     list_filter = ("status", "week_start")
     readonly_fields = ("participant", "week_start", "status", "created_at")
+    def has_add_permission(self, request):
+        return False
+
+
+from .models import AssignmentRotation, AvailabilitySlot, CounsellorProfile, RiskEvidence
+
+
+@admin.register(CounsellorProfile)
+class CounsellorProfileAdmin(admin.ModelAdmin):
+    list_display = ("user", "accepts_assignments", "notification_opt_in")
+    list_filter = ("accepts_assignments",)
+
+
+@admin.register(AvailabilitySlot)
+class AvailabilitySlotAdmin(admin.ModelAdmin):
+    list_display = ("counsellor", "starts_at", "is_active", "session")
+    list_filter = ("counsellor", "is_active")
+
+    def has_add_permission(self, request):
+        # Slot creation goes through overlap validation in the counsellor UI.
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RiskEvidence)
+class RiskEvidenceAdmin(admin.ModelAdmin):
+    list_display = ("participant", "layer", "reason", "recorded_at")
+    readonly_fields = ("participant", "layer", "reason", "recorded_at")
     def has_add_permission(self, request):
         return False

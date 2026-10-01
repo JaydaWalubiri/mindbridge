@@ -7,6 +7,12 @@ from django.utils import timezone
 class Participant(models.Model):
     code = models.CharField(max_length=32, unique=True)
     display_name = models.CharField(max_length=80)
+    age = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(13), MaxValueValidator(24)])
+    onboarding_complete = models.BooleanField(default=False)
+    minor_assent_at = models.DateTimeField(null=True, blank=True)
+    is_simulated = models.BooleanField(default=False)
+    booking_choices = models.JSONField(default=list, blank=True)
+    deletion_requested_at = models.DateTimeField(null=True, blank=True)
     area = models.CharField(max_length=80, blank=True)
     counsellor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
                                     null=True, blank=True, related_name="participants")
@@ -48,8 +54,12 @@ class RiskAlert(models.Model):
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
                                     on_delete=models.SET_NULL, related_name="reviewed_alerts")
 
+    outcome = models.CharField(max_length=20, blank=True, choices=[("concern_confirmed", "Concern confirmed"), ("false_positive", "False positive"), ("follow_up", "Follow-up needed")])
+    review_note = models.TextField(blank=True)
+    escalated_at = models.DateTimeField(null=True, blank=True)
+
     class Meta:
-        ordering = ["-created_at"]
+        ordering = ["priority", "-created_at"]
 
 
 class Session(models.Model):
@@ -80,6 +90,8 @@ class InboundMessage(models.Model):
     body = models.TextField(blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
     reply = models.TextField(blank=True)
+    sentiment_label = models.CharField(max_length=32, blank=True)
+    sentiment_score = models.FloatField(null=True, blank=True)
     delivered = models.BooleanField(default=False)
 
     class Meta:
@@ -103,6 +115,7 @@ class OutboundMessage(models.Model):
     payload = models.JSONField()
     status = models.CharField(max_length=12, choices=[("pending", "Pending"), ("sent", "Sent"),
                                ("failed", "Failed"), ("cancelled", "Cancelled")], default="pending")
+    recipient_counsellor = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
     attempts = models.PositiveSmallIntegerField(default=0)
     next_attempt_at = models.DateTimeField(default=timezone.now)
     provider_message_id = models.CharField(max_length=128, blank=True)
@@ -124,3 +137,42 @@ class WeeklyCheckIn(models.Model):
     class Meta:
         constraints = [models.UniqueConstraint(fields=["participant", "week_start"], name="unique_weekly_checkin")]
         ordering = ["-week_start"]
+
+
+class CounsellorProfile(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="care_profile")
+    accepts_assignments = models.BooleanField(default=True)
+    whatsapp_number = models.CharField(max_length=32, blank=True, help_text="Authorized counsellor WhatsApp number, digits with country code.")
+    notification_opt_in = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.user.get_full_name() or self.user.username
+
+
+class AssignmentRotation(models.Model):
+    # Seeded singleton, locked while advancing the round-robin cursor.
+    last_user_id = models.PositiveBigIntegerField(default=0)
+
+
+class AvailabilitySlot(models.Model):
+    counsellor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="availability_slots")
+    starts_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    session = models.OneToOneField(Session, null=True, blank=True, on_delete=models.SET_NULL, related_name="availability_slot")
+
+    class Meta:
+        ordering = ["starts_at"]
+        constraints = [models.UniqueConstraint(fields=["counsellor", "starts_at"], name="unique_counsellor_slot")]
+
+    def __str__(self):
+        return f"{self.counsellor} — {timezone.localtime(self.starts_at):%d %b %Y %H:%M} EAT"
+
+
+class RiskEvidence(models.Model):
+    participant = models.ForeignKey(Participant, on_delete=models.CASCADE, related_name="risk_evidence")
+    layer = models.CharField(max_length=12, choices=[("behaviour", "Behaviour"), ("keyword", "Keyword"), ("sentiment", "Sentiment")])
+    reason = models.CharField(max_length=180)
+    recorded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-recorded_at"]
