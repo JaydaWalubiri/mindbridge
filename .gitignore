@@ -1,6 +1,33 @@
+# Python and local environments
 __pycache__/
 *.py[cod]
-db.sqlite3
-.env
 .venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Runtime databases, environment secrets and logs
+*.sqlite3
+*.sqlite3-journal
+.env
+.env.*
+!.env.example
+*.log
+
+# Generated static files, uploads and model artifacts
 staticfiles/
+media/
+checkpoints/
+outputs/
+*.safetensors
+*.pt
+*.pth
+adapter_model.bin
+.ipynb_checkpoints/
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
