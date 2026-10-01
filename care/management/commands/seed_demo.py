@@ -2,7 +2,7 @@ from datetime import timedelta
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
-from care.models import MoodEntry, Participant, RiskAlert, Session
+from care.models import CounsellorProfile, MoodEntry, Participant, RiskAlert, Session
 
 
 class Command(BaseCommand):
@@ -12,6 +12,7 @@ class Command(BaseCommand):
         owner = get_user_model().objects.filter(is_superuser=True).order_by("pk").first()
         if not owner:
             raise CommandError("Create a superuser first: python manage.py createsuperuser")
+        CounsellorProfile.objects.get_or_create(user=owner)
         now = timezone.now()
         samples = [
             ("DEMO-001", "Sample participant A", "Kibera", [4, 3, 3, 2], "Follow-up requested after check-in", "high"),
@@ -20,7 +21,7 @@ class Command(BaseCommand):
         ]
         for code, name, area, scores, reason, priority in samples:
             person, _ = Participant.objects.get_or_create(code=code, defaults={
-                "display_name": name, "area": area, "counsellor": owner,
+                "display_name": name, "area": area, "counsellor": owner, "is_simulated": True, "age": 19, "onboarding_complete": True,
             })
             if not person.moods.exists():
                 for days_ago, score in zip((21, 14, 7, 0), scores):
