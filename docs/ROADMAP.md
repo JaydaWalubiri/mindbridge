@@ -10,6 +10,7 @@ The following milestones and issues are tracked on GitHub. No due dates have bee
 | --- | --- |
 | [#2: Organize the GitHub repository](https://github.com/JaydaWalubiri/mindbridge/issues/2) | Short README; clear backend/frontend map; contribution guide and templates; issues and milestones created; default `main` and branch settings verified. |
 | [#3: Review participant, counsellor and admin journeys](https://github.com/JaydaWalubiri/mindbridge/issues/3) | Walk through onboarding, assignment, check-ins, alerts and booking with fictional data; record screenshots and any bugs; verify role access; review PR #1 before merging. |
+| [#14: Improve keyword matching and verify risk rules](https://github.com/JaydaWalubiri/mindbridge/issues/14) | Direct negation and explicit phrase variants; current-signal requirement; controlled-date mood and disengagement tests; results and limits in [RISK_CHECKS.md](RISK_CHECKS.md). |
 
 ## 2. [Model integration](https://github.com/JaydaWalubiri/mindbridge/milestone/2)
 
