@@ -291,10 +291,17 @@ def process_message(participant, body, external_id):
             classification = classify_note(text)
             if participant.flow_state == "note" and latest:
                 latest.note = text
+                latest.sentiment_label = ""
+                latest.sentiment_score = None
+                latest.sentiment_source = ""
+                latest.sentiment_risk_eligible = False
                 if classification:
                     latest.sentiment_label = classification.label
                     latest.sentiment_score = classification.confidence
-                latest.save(update_fields=["note", "sentiment_label", "sentiment_score"])
+                    latest.sentiment_source = classification.source
+                    latest.sentiment_risk_eligible = classification.risk_eligible
+                latest.save(update_fields=["note", "sentiment_label", "sentiment_score",
+                                          "sentiment_source", "sentiment_risk_eligible"])
             participant.flow_state = "menu"
             analyse = True
             history = list(participant.inbound_messages.order_by("-received_at").values("body", "reply")[:6])
@@ -311,6 +318,8 @@ def process_message(participant, body, external_id):
         if classification:
             incoming.sentiment_label = classification.label
             incoming.sentiment_score = classification.confidence
+            incoming.sentiment_source = classification.source
+            incoming.sentiment_risk_eligible = classification.risk_eligible
         if signal:
             priority, reason, source = signal
             create_alert(participant, priority, reason, source)
@@ -318,7 +327,8 @@ def process_message(participant, body, external_id):
                 reply = SUPPORT
                 buttons = (("request_session", "Counsellor"),)
         incoming.reply = reply
-        incoming.save(update_fields=["reply", "sentiment_label", "sentiment_score"])
+        incoming.save(update_fields=["reply", "sentiment_label", "sentiment_score",
+                                     "sentiment_source", "sentiment_risk_eligible"])
         incoming.suggested_buttons = buttons
         queue_reply(incoming, buttons)
         return incoming, True

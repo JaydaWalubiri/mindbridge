@@ -3,8 +3,10 @@
 ## Current behaviour
 
 The conversation model generates replies. A separate sentiment classifier must
-return a label and confidence. Neither adapter is connected yet; the tests use
-explicit mock predictions rather than claiming model performance.
+return a label and confidence. A local English DistilBERT baseline adapter is
+now available; scores are excluded from risk by default pending evaluation.
+The conversation adapter remains unconnected. Rule tests use mock predictions
+rather than claiming model performance. See [MODEL_INTEGRATION.md](MODEL_INTEGRATION.md).
 
 | Signal | Behaviour |
 | --- | --- |

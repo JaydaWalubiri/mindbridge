@@ -31,7 +31,7 @@ class KeywordAdmin(admin.ModelAdmin):
 @admin.register(InboundMessage)
 class InboundMessageAdmin(admin.ModelAdmin):
     list_display = ("external_id", "participant", "received_at", "delivered")
-    readonly_fields = ("external_id", "participant", "body", "received_at", "reply", "delivered", "sentiment_label", "sentiment_score")
+    readonly_fields = ("external_id", "participant", "body", "received_at", "reply", "delivered", "sentiment_label", "sentiment_score", "sentiment_source", "sentiment_risk_eligible")
     def has_add_permission(self, request):
         return False
 

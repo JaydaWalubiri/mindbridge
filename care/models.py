@@ -36,6 +36,8 @@ class MoodEntry(models.Model):
     note = models.TextField(blank=True)
     sentiment_label = models.CharField(max_length=32, blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
+    sentiment_source = models.CharField(max_length=512, blank=True)
+    sentiment_risk_eligible = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["recorded_at"]
@@ -92,6 +94,8 @@ class InboundMessage(models.Model):
     reply = models.TextField(blank=True)
     sentiment_label = models.CharField(max_length=32, blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
+    sentiment_source = models.CharField(max_length=512, blank=True)
+    sentiment_risk_eligible = models.BooleanField(default=False)
     delivered = models.BooleanField(default=False)
 
     class Meta:
