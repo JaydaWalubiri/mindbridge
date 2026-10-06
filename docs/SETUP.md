@@ -33,4 +33,3 @@ macOS/Linux: use `python -m venv .venv`, `source .venv/bin/activate`, `pip insta
 | Administrator operations | http://127.0.0.1:8000/workspace-admin/ |
 | Django record management | http://127.0.0.1:8000/admin/ |
 | Staff-only local participant simulator | http://127.0.0.1:8000/preview/whatsapp/ |
-
