@@ -63,4 +63,4 @@ For optional sample records, stop Django and run `manage.py seed_demo`, then res
 
 ## What still needs the live connection
 
-Real participants use the MindBridge WhatsApp number. Configure HTTPS, PostgreSQL, Turn credentials, approved templates and scheduled workers using the README. Test acceptance on authorized Turn test contacts. Model-generated responses appear only after the evaluated inference adapters are connected.
+Real participants use the MindBridge WhatsApp number. Configure HTTPS, PostgreSQL, Turn credentials, approved templates and scheduled workers using the [Turn integration guide](TURN_INTEGRATION.md). Test acceptance on authorized Turn test contacts. Model-generated responses appear only after the evaluated inference adapters are connected.

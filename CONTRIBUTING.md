@@ -1,68 +1,60 @@
-# Working with Git
+# Working on MindBridge
+
+Follow [GitHub flow](https://docs.github.com/en/get-started/using-github/github-flow): create an issue, work on a branch, open a pull request, check the changes, then merge.
 
 ## Branches
 
-- `main`: reviewed, working application. Merge through a pull request after checks pass.
-- `feat/<short-topic>`: a new feature, for example `feat/whatsapp-onboarding`.
-- `fix/<short-topic>`: a correction, for example `fix/session-double-booking`.
-- `docs/<short-topic>`: documentation, for example `docs/review-guide`.
+Keep **one permanent branch, `main`**, for reviewed work. Normally, a single developer needs `main` and one branch for the task they are working on. Create branches when work begins and delete them after merging.
 
-The existing `feat/full-stack-care-workspace` branch continues the current review. Do not rename it while its PR and Windows checkouts use it. Start subsequent focused branches from updated `main` after this PR is merged. This small project does not need a permanent `develop` branch.
+Use short names that explain the task:
 
-## Daily workflow
+| Task | Example branch |
+| --- | --- |
+| Add counselling booking | `session-booking` |
+| Fix a login problem | `fix-login` |
+| Connect WhatsApp | `whatsapp-connection` |
+| Update documentation | `update-readme` |
 
-```powershell
-git status -sb
-git pull --ff-only
-```
+There is no need for separate backend, frontend or model branches. These are parts of the application, not separate versions of it.
 
-Use this on a clean checkout of the branch you intend to update. If Git shows local changes or cannot fast-forward, inspect before pulling again; do not discard changes or force-push to make the error disappear.
+The existing `feat/full-stack-care-workspace` branch contains the first application build in draft PR #1. Keep it until review is complete. `organize-github` contains this repository cleanup and is based on that branch. Review and merge the cleanup into the application branch first, then merge PR #1 into `main`. Delete both completed branches afterwards. Future task branches start from `main`. Set `main` as the repository default in GitHub settings.
 
-For a new task after the current PR is merged:
+## Issues and milestones
+
+Search for an existing issue before creating another. Give each issue a clear title, a short description, a checklist of completion requirements and a way to check the result. Use the labels `bug`, `enhancement` or `documentation` and assign the person doing the work.
+
+Group related issues into the four milestones in [the roadmap](docs/ROADMAP.md). Keep the issue open until its requirements are met. Add due dates only when the project dates are confirmed.
+
+## Making changes
+
+After the first application PR has merged, start a task from a clean checkout:
 
 ```powershell
 git switch main
 git pull --ff-only
-git switch -c feat/short-topic
+git switch -c session-booking
 ```
 
-Make a focused change, run relevant checks, inspect `git diff`, and stage explicit paths:
+Check `git diff`, add only the files for the task, then commit and push:
 
 ```powershell
-git add care/views.py templates/care/dashboard.html
+git add care/views.py templates/care/sessions.html
 git diff --cached
-git commit -m "feat: show pending counselling requests"
-git push -u origin feat/short-topic
+git commit -m "Add counselling session booking"
+git push -u origin session-booking
 ```
 
-Include actual migration and test paths whenever required by the feature. Avoid `git add .` when secrets, notebooks, downloads, or unrelated work may be present.
+Commit messages should say what changed, for example `Fix overlapping appointments` or `Explain local setup`. Keep each commit focused. Avoid vague messages like `update` or `final`. Do not rewrite published commits just to rename them.
 
-## Commit messages
+## Pull requests
 
-Use `type: action and result`, with simple, specific wording:
+- Open a pull request for a focused task. Use a draft while it is unfinished.
+- Describe the change, link its issue and record how it was checked. Add screenshots for screen changes.
+- Write `Closes #12` when merging into `main` completes issue 12. Use `Refs #12` when only part of the work is done or the PR targets another task branch.
+- Review the diff and passing checks before merging. A solo developer can review their own changes; ask another contributor to review when available.
+- Use squash merge for small task PRs, then delete the finished branch and update local `main`.
 
-| Type | Example |
-| --- | --- |
-| `feat` | `feat: let participants choose counselling times` |
-| `fix` | `fix: prevent overlapping counselling appointments` |
-| `test` | `test: verify counsellor assignment and booking` |
-| `docs` | `docs: explain local setup and project folders` |
-| `chore` | `chore: ignore local model checkpoints` |
-
-A commit should form one reviewable change. Avoid `update`, `final`, `stuff`, or version-number filenames. Add a body when the reason or limitation needs explanation. Do not rewrite existing published history merely to improve old messages.
-
-## Pull requests and merging
-
-1. Explain the resulting behavior, relevant validation, migrations and remaining dependencies.
-2. Keep unfinished work in a draft PR. Mark ready after review and validation.
-3. Require passing checks and review before merging into `main`.
-4. Use **Squash and merge** for a focused future PR with incidental intermediate commits. Preserve the current PR's published history until a merge is deliberately chosen.
-5. After merge, remove the finished remote task branch and start the next task from updated `main`.
-6. Never commit or push runtime databases, private conversations, credentials or model weights.
-
-These are repository workflow conventions. They do not themselves enforce GitHub permissions. For server enforcement, a repository administrator should configure a `main` ruleset requiring PRs and the Django CI check, blocking force pushes and branch deletion. Do not claim protection is active until the actual ruleset is verified.
-
-## Required checks
+For application changes, run:
 
 ```powershell
 .\.venv\Scripts\python.exe manage.py check
@@ -70,4 +62,10 @@ These are repository workflow conventions. They do not themselves enforce GitHub
 .\.venv\Scripts\python.exe manage.py test
 ```
 
-Use fictional records for local UI review. Never include credentials or participant data in issue descriptions, test fixtures or screenshots.
+## GitHub settings
+
+Set `main` as the default. Require pull requests and the Django `tests` check, and block force pushes and deletion on `main`. Enable squash merging and automatic deletion of merged task branches. For a solo project, do not require another person's approval unless a reviewer is available. Require the CI check after the workflow is present on `main`.
+
+These settings must be configured on GitHub; writing them here does not enable them.
+
+Use fictional records in examples. Do not commit passwords, participant data, local databases, virtual environments or model weights.

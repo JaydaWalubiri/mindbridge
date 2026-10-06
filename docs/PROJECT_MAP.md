@@ -2,21 +2,23 @@
 
 One Django application contains the care workflows. Keep the familiar Django filenames and avoid another frontend project, duplicated versions, or deeply nested service layers.
 
-## Top-level folders
+## Backend, frontend and documentation
 
-| Location | Contents |
-| --- | --- |
-| `care/` | Application backend and its tests |
-| `config/` | Django settings and top-level routing |
-| `templates/care/` | Counsellor, admin and simulator screens |
-| `templates/registration/` | Login screen |
-| `static/care/` | Shared CSS |
-| `docs/` | Review instructions, architecture and requirement comparison |
-| `.github/` | CI and issue/PR templates |
-| `manage.py` | Django command entry point |
-| `requirements.txt` | Runtime dependencies |
-| `.env.example` | Environment variable names with placeholders |
-| `CONTRIBUTING.md` | Version-control workflow |
+| Part | Location | What is inside |
+| --- | --- | --- |
+| Backend | `care/` | Database models, views, services, risk rules and tests |
+| Backend configuration | `config/` | Django settings and main URL routes |
+| Frontend screens | `templates/care/` | Counsellor, admin and demo chat pages |
+| Frontend login | `templates/registration/` | Login page |
+| Frontend styling | `static/care/` | Shared CSS |
+| Documentation | `docs/` | Setup, walkthrough, architecture and project notes |
+| GitHub setup | `.github/` | Automated checks and issue/PR templates |
+| Run the application | `manage.py` | Django commands |
+| Python packages | `requirements.txt` | Required dependencies |
+| Environment settings | `.env.example` | Setting names and placeholders |
+| Contribution guide | `CONTRIBUTING.md` | Branches, commits and pull requests |
+
+The backend and frontend belong to the same Django project. These folders keep Django's standard layout. You do not need another frontend server. Start with `care/` for Python logic, `templates/` for pages and `static/` for styles.
 
 ## Find a feature
 
