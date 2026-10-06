@@ -26,7 +26,8 @@ def assess(person, text="", classification=None):
         evidence.append(("behaviour", "Mood dropped by three or more points"))
     if matches:
         evidence.append(("keyword", "Configured keyword matched"))
-    if classification and classification.label.casefold()=="negative" and classification.confidence>=settings.RISK_NEGATIVE_THRESHOLD:
+    if (classification and classification.risk_eligible and classification.label.casefold()=="negative"
+        and classification.confidence>=settings.RISK_NEGATIVE_THRESHOLD):
         evidence.append(("sentiment", "Negative sentiment above configured threshold"))
     for layer, reason in evidence:
         if not person.risk_evidence.filter(layer=layer, reason=reason, recorded_at__gte=now-timedelta(days=1)).exists():
