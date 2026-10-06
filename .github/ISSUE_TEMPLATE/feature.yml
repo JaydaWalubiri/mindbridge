@@ -1,0 +1,31 @@
+name: Feature
+description: Track one MindBridge improvement
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome
+      description: Describe what a participant, counsellor, or administrator should be able to do.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: List observable checks for completion.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List required credentials, data, model artifacts, or reviews without pasting secrets.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: How will we verify that the acceptance criteria are met?
+    validations:
+      required: true

@@ -1,0 +1,32 @@
+name: Bug
+description: Report a reproducible development issue
+title: "fix: "
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Use fictional records only. Never paste participant data or tokens.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+      description: Include the error and relevant environment, with sensitive information removed.
+    validations:
+      required: true
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance criteria
+      description: What observable result will confirm the fix?
+    validations:
+      required: true
