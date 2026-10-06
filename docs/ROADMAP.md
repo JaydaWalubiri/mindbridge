@@ -1,33 +1,37 @@
-# Remaining milestones
+# Project roadmap
 
-## Implemented for local review
+The first application build is in [PR #1](https://github.com/JaydaWalubiri/mindbridge/pull/1). It includes onboarding, counsellor assignment, mood tracking, alerts, booking, admin controls and a local WhatsApp simulator. Review and acceptance are still needed.
 
-- [x] Login, participant access controls and admin workspace
-- [x] Nickname/age onboarding and additional under-18 agreement
-- [x] Round-robin eligible counsellor assignment and waiting list
-- [x] Mood tracking, four-week chart and message history
-- [x] Weekly cycles and missed/no-contact review
-- [x] Distinct-layer risk evidence and explicit rule/keyword review paths
-- [x] Alert outcomes, priority ordering and 24-hour escalation worker
-- [x] Availability management and participant slot selection
-- [x] Session completion/cancellation and confirmation queues
-- [x] Staff notices with notification opt-in and approved templates
-- [x] Retention/deletion worker and chat deletion request
-- [x] Database-connected local simulator with no provider delivery
-- [x] Automated workflow and access tests
+The following groups are intended as GitHub milestones. They have not yet been created: the current GitHub connection rejected write access. Until they exist, this page records the exact work to create and track. No due dates have been set.
 
-## Model integration
+## 1. Core workflows and UI
 
-- [ ] Complete/evaluate conversational training and classifier artifacts
-- [ ] Connect both adapters and evaluate language slices and safety behavior
-- [ ] Validate thresholds and review outcomes with supervisors
+| Issue to create | Completion requirements |
+| --- | --- |
+| Organize the GitHub repository | Short README; clear backend/frontend map; contribution guide and templates; issues and milestones created; default `main` and branch settings verified. |
+| Review participant, counsellor and admin journeys | Walk through onboarding, assignment, check-ins, alerts and booking with fictional data; record screenshots and any bugs; verify role access; review PR #1 before merging. |
 
-## Deployment and supervised acceptance
+## 2. Model integration
 
-- [ ] Public HTTPS, production PostgreSQL and protected secrets
-- [ ] Turn account, actual webhook, approved templates and authorized test contacts
-- [ ] Scheduled delivery, check-in, escalation and retention workers with monitoring
-- [ ] Staff coverage and approved consent/safeguarding process
-- [ ] Encryption, backups and deletion policy covering provider and backup copies
-- [ ] Visual review of all screens, usability assessment and real gateway integration tests
-- [ ] Confirm proposal's standalone behavioural rule interpretation and document final model choices
+| Issue to create | Completion requirements |
+| --- | --- |
+| Connect the trained conversation model | Record the model version; implement `generate_response`; test English, Kiswahili and Sheng examples and model failure fallback. |
+| Connect the sentiment classifier | Implement `classify_note`; store scores and sources; check rule/keyword agreement, Tier-1 override and configured thresholds. |
+| Evaluate model performance | Use held-out English, Kiswahili, Sheng and code-switched examples; record the split, labels, metrics and language differences; document the selected threshold. |
+
+## 3. Live WhatsApp integration
+
+| Issue to create | Completion requirements |
+| --- | --- |
+| Test the Turn.io connection | Configure authorized test contacts, signed webhook and approved templates; verify onboarding, replies, booking and staff notices on actual WhatsApp; record delivery failures and retries. |
+| Set up scheduled tasks | Schedule outbound delivery, check-ins, escalation and retention commands; verify execution, failures and monitoring. |
+
+## 4. Evaluation and deployment
+
+| Issue to create | Completion requirements |
+| --- | --- |
+| Deploy Django with PostgreSQL | Configure HTTPS, environment settings and PostgreSQL; run migrations and deployment checks; verify access and a backup/restore exercise. |
+| Confirm consent and data handling | Document the approved consent and safeguarding arrangements; confirm retention/deletion across the app, provider and backups. |
+| Complete user testing and project handover | Record usability findings with authorized testers; fix identified issues; update setup and system notes; prepare an accepted release tag and demonstration. |
+
+Create one issue for each row, assign its milestone and use its checklist to determine completion. Search existing issues before creating duplicates. Keep unfinished tasks open. Do not mark model or live WhatsApp work complete based on the local simulator.
