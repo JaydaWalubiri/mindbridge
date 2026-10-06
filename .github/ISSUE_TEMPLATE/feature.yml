@@ -22,3 +22,10 @@ body:
     attributes:
       label: Dependencies
       description: List required credentials, data, model artifacts, or reviews without pasting secrets.
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: How will we verify that the acceptance criteria are met?
+    validations:
+      required: true
