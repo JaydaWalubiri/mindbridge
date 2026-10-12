@@ -14,3 +14,40 @@ jobs:
       - run: python manage.py check
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py test
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16
+        env:
+          POSTGRES_DB: mindbridge_ci
+          POSTGRES_USER: mindbridge_ci
+          POSTGRES_PASSWORD: fictional-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mindbridge_ci -d mindbridge_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      POSTGRES_DB: mindbridge_ci
+      POSTGRES_USER: mindbridge_ci
+      POSTGRES_PASSWORD: fictional-ci-password
+      POSTGRES_HOST: localhost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt -r requirements-model-tests.txt
+      - run: python manage.py migrate --noinput
+      - run: python manage.py test
+  deployment-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env
+      - run: docker compose config --quiet
+        env:
+          POSTGRES_DB: mindbridge_ci
+          POSTGRES_USER: mindbridge_ci
+          POSTGRES_PASSWORD: fictional-ci-password
