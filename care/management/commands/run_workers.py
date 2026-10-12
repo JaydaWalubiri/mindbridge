@@ -22,7 +22,8 @@ class Command(BaseCommand):
             raise CommandError("Continuous workers require PostgreSQL. Use --once for local testing.")
         deadlines = {}
         while True:
-            close_old_connections()
+            if not connection.in_atomic_block:
+                close_old_connections()
             now = time.monotonic()
             failures = []
             for name, interval, action in TASKS:
