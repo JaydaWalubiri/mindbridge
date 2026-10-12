@@ -102,7 +102,7 @@ def deliver_due(limit=50):
                .values_list("pk", flat=True)[:limit])
     for pk in due:
         with transaction.atomic():
-            item = OutboundMessage.objects.select_for_update().select_related("participant", "inbound").get(pk=pk)
+            item = OutboundMessage.objects.select_for_update().select_related("participant").get(pk=pk)
             if item.status != "pending" or item.next_attempt_at > timezone.now():
                 continue
             # Consent may be withdrawn after a weekly reminder was queued.
