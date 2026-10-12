@@ -10,7 +10,7 @@ Python and Django; Django templates, HTML and CSS; PostgreSQL for deployment and
 
 ## Project status
 
-The core application is implemented on `feat/full-stack-care-workspace` and is under review in [PR #1](https://github.com/JaydaWalubiri/mindbridge/pull/1). Model adapters, real Turn acceptance testing and deployment remain pending. The browser chat simulator is for local staff review.
+The core application is implemented on `feat/full-stack-care-workspace` and is under review in [PR #1](https://github.com/JaydaWalubiri/mindbridge/pull/1). The pinned conversation adapter connection and English sentiment baseline are implemented for supervised testing; hosting, model review and real Turn acceptance remain pending. The browser chat simulator is for local staff review.
 
 ## Quick start
 
@@ -36,3 +36,6 @@ Open http://127.0.0.1:8000/login/. For an existing installation or Linux/macOS, 
 - [Contribution workflow](CONTRIBUTING.md)
 
 Track tasks in [Issues](https://github.com/JaydaWalubiri/mindbridge/issues) and delivery groups in [Milestones](https://github.com/JaydaWalubiri/mindbridge/milestones).
+
+
+For the whole stack, follow [SYSTEM_SETUP.md](docs/SYSTEM_SETUP.md). Run `python manage.py check_system` for configuration and worker status; it never sends WhatsApp messages.

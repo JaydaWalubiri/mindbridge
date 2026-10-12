@@ -15,7 +15,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from .forms import SessionForm, AvailabilityForm
-from .models import AvailabilitySlot, CounsellorProfile, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest
+from .models import AvailabilitySlot, CounsellorProfile, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WorkerStatus
 from .services import process_message, queue_session_confirmation, valid_turn_signature
 
 
@@ -114,6 +114,14 @@ def book_session(request, pk):
 
 @staff_member_required
 def admin_dashboard(request):
+    from .management.commands.run_workers import TASKS
+    workers = []
+    for task, interval, _ in TASKS:
+        item = WorkerStatus.objects.filter(task=task).first()
+        healthy = bool(item and not item.last_error_type and item.last_success_at
+                       and item.last_success_at >= timezone.now()-timedelta(seconds=interval+180))
+        workers.append({"name": task.capitalize(), "healthy": healthy,
+                        "last_success_at": item.last_success_at if item else None})
     return render(request, "care/admin_dashboard.html", {
         "overdue_alerts": RiskAlert.objects.filter(status="open", created_at__lte=timezone.now()-timedelta(hours=24)).select_related("participant"),
         "unassigned": Participant.objects.filter(onboarding_complete=True, counsellor__isnull=True),
@@ -130,6 +138,10 @@ def admin_dashboard(request):
         "keywords": Keyword.objects.filter(is_active=True).count(),
         "outbound_pending": OutboundMessage.objects.filter(status="pending").count(),
         "outbound_failed": OutboundMessage.objects.filter(status="failed").count(),
+        "workers": workers,
+        "sentiment_enabled": settings.SENTIMENT_ENABLED,
+        "sentiment_risk_enabled": settings.SENTIMENT_RISK_ENABLED,
+        "conversation_configured": bool(settings.CONVERSATION_ENABLED and settings.CONVERSATION_URL and settings.CONVERSATION_API_TOKEN),
         "turn_ready": bool(settings.TURN_WEBHOOK_SECRET and settings.TURN_API_TOKEN),
         "template_ready": bool(settings.TURN_TEMPLATE_NAMESPACE and settings.TURN_CHECKIN_TEMPLATE_NAME),
     })
@@ -167,10 +179,18 @@ def turn_webhook(request):
         if message.get("type") not in ("text", "interactive") or not message.get("id") or not message.get("from"):
             continue
         if message["type"] == "interactive":
-            choice = message.get("interactive", {}).get("button_reply") or message.get("interactive", {}).get("list_reply") or {}
+            interactive = message.get("interactive")
+            if not isinstance(interactive, dict):
+                continue
+            choice = interactive.get("button_reply") or interactive.get("list_reply") or {}
+            if not isinstance(choice, dict):
+                continue
             body = choice.get("id") or choice.get("title", "")
         else:
-            body = message.get("text", {}).get("body", "")
+            text_payload = message.get("text")
+            if not isinstance(text_payload, dict):
+                continue
+            body = text_payload.get("body", "")
         if not isinstance(body, str) or not body.strip():
             continue
         wa_id = str(message["from"])[:32]
@@ -278,3 +298,4 @@ def simulator_message(request):
     return JsonResponse({"reply": incoming.reply, "buttons": getattr(incoming, "suggested_buttons", ()),
         "code": person.code, "profile_url": f"/participants/{person.pk}/", "state": person.flow_state,
         "assigned_to": person.counsellor.get_full_name() or person.counsellor.username if person.counsellor_id else "Awaiting assignment"})
+

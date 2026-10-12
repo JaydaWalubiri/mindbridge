@@ -45,5 +45,6 @@ class Command(BaseCommand):
         ))
         self.stdout.write(
             "Starter list is for testing. Obtain counsellor review before live use. "
-            "Matching does not yet understand negation or spelling variations."
+            "Direct supported negations and documented phrase variants are handled; indirect wording still needs review."
         )
+

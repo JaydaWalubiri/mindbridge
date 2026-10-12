@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,7 +44,14 @@ AUTH_PASSWORD_VALIDATORS = [{"NAME": "django.contrib.auth.password_validation.Us
 LANGUAGE_CODE = "en-ke"
 TIME_ZONE = "Africa/Nairobi"
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+if os.environ.get("DJANGO_SERVE_STATIC", "0") == "1":
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+# Enable only behind a trusted proxy which overwrites X-Forwarded-Proto.
+if os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if x.strip()]
 STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
@@ -70,3 +78,13 @@ SENTIMENT_ENABLED = os.environ.get("SENTIMENT_ENABLED", "0") == "1"
 SENTIMENT_RISK_ENABLED = os.environ.get("SENTIMENT_RISK_ENABLED", "0") == "1"
 SENTIMENT_MODEL = os.environ.get("SENTIMENT_MODEL", "distilbert/distilbert-base-uncased-finetuned-sst-2-english")
 SENTIMENT_REVISION = os.environ.get("SENTIMENT_REVISION", "714eb0fa89d2f80546fda750413ed43d93601a13")
+CONVERSATION_ENABLED = os.environ.get("CONVERSATION_ENABLED", "0") == "1"
+CONVERSATION_URL = os.environ.get("CONVERSATION_URL", "")
+CONVERSATION_API_TOKEN = os.environ.get("CONVERSATION_API_TOKEN", "")
+CONVERSATION_TIMEOUT = min(8.0, max(0.1, float(os.environ.get("CONVERSATION_TIMEOUT", "8"))))
+_conversation_manifest = BASE_DIR / "model_server" / "candidate.json"
+_conversation_source = ""
+if _conversation_manifest.is_file():
+    _candidate = json.loads(_conversation_manifest.read_text(encoding="utf-8"))
+    _conversation_source = _candidate["adapter_repo"] + "@" + _candidate["adapter_revision"]
+CONVERSATION_EXPECTED_SOURCE = os.environ.get("CONVERSATION_EXPECTED_SOURCE", _conversation_source)

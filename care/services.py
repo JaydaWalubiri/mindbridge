@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, SessionRequest, WeeklyCheckIn
 from .model_ports import classify_note, generate_response
+from .response_policy import route, scripted_reply, select_language
 
 CONSENT = ("Welcome to MindBridge. We can save your check-ins so a counsellor can review them. "
            "Is that okay? Reply 'I agree' to continue, or 'not now'.")
@@ -101,7 +102,7 @@ def deliver_due(limit=50):
                .values_list("pk", flat=True)[:limit])
     for pk in due:
         with transaction.atomic():
-            item = OutboundMessage.objects.select_for_update().select_related("participant", "inbound").get(pk=pk)
+            item = OutboundMessage.objects.select_for_update().select_related("participant").get(pk=pk)
             if item.status != "pending" or item.next_attempt_at > timezone.now():
                 continue
             # Consent may be withdrawn after a weekly reminder was queued.
@@ -125,7 +126,7 @@ def deliver_due(limit=50):
                     raise ValueError("Turn did not return a message ID")
             except (OSError, ValueError, RuntimeError) as error:
                 item.attempts += 1
-                item.last_error = type(error).__name__ + ": " + str(error)[:190]
+                item.last_error = type(error).__name__
                 item.status = "failed" if item.attempts >= 5 else "pending"
                 item.next_attempt_at = timezone.now() + timedelta(minutes=min(60, 2 ** item.attempts))
                 item.save(update_fields=["attempts", "last_error", "status", "next_attempt_at"])
@@ -202,6 +203,14 @@ def process_message(participant, body, external_id):
         buttons = ()
         classification = None
         analyse = False
+        reply_source = "scripted_workflow"
+        response_kind = route(text)
+        response_language = select_language(text, participant.preferred_language)
+        active_safety = participant.alerts.filter(status="open", priority="high",
+            trigger_source__in=("Tier-1 keyword override", "response safety override")).first()
+        if not response_kind and active_safety and participant.consented:
+            response_kind = "urgent"
+        early_signal = None
         if command in ("delete my data", "delete data"):
             participant.deletion_requested_at = participant.deletion_requested_at or timezone.now()
             participant.consented = False
@@ -219,6 +228,23 @@ def process_message(participant, body, external_id):
             reply = "That's okay. Check-ins are paused. Message us whenever you're ready to continue."
             OutboundMessage.objects.filter(participant=participant, status="pending").update(status="cancelled")
             buttons = (("consent_yes", "I agree"),)
+        elif response_kind in ("urgent", "friend_risk"):
+            # Emergency guidance must not wait for onboarding or model/network calls.
+            reply = scripted_reply(response_kind, response_language)
+            reply_source = "scripted_safety"
+            # Keep emergency guidance while allowing an opted-in person to request help.
+            if participant.consented and participant.onboarding_complete:
+                if command in ("counsellor", "talk to a counsellor", "talk to counsellor", "session"):
+                    reply += "\n\n" + slot_prompt(participant)
+                elif participant.flow_state == "booking" and command.isdigit():
+                    reply += "\n\n" + select_booking(participant, command)
+            if participant.consented:
+                early_signal = (active_safety.priority, active_safety.reason,
+                    active_safety.trigger_source) if active_safety else assess(participant, text) or (
+                    "high", "Explicit safety concern", "response safety override")
+                priority, reason, source = early_signal
+                create_alert(participant, priority, reason, source)
+            buttons = (("request_session", "Counsellor"),) if participant.onboarding_complete else ()
         elif not participant.consented:
             if command in ("i agree", "yes, i agree"):
                 participant.consented = True
@@ -304,9 +330,22 @@ def process_message(participant, body, external_id):
                                           "sentiment_source", "sentiment_risk_eligible"])
             participant.flow_state = "menu"
             analyse = True
-            history = list(participant.inbound_messages.order_by("-received_at").values("body", "reply")[:6])
-            reply = generate_response(text, {"participant_id": participant.pk, "history": list(reversed(history))}) or (
-                "Asante for sharing. Your counsellor can review your message. You can keep writing, check in, or ask for a session.")
+            early_signal = assess(participant, text, classification)
+            if early_signal:
+                priority, reason, source = early_signal
+                create_alert(participant, priority, reason, source)
+            history = list(participant.inbound_messages.exclude(pk=incoming.pk)
+                .exclude(reply="").exclude(reply_source__in=("", "scripted_workflow", "scripted_safety"))
+                .filter(received_at__gte=participant.consented_at or participant.created_at)
+                .order_by("-received_at").values("body", "reply")[:6])
+            if early_signal and early_signal[0] == "high":
+                reply = scripted_reply("urgent", response_language)
+            else:
+                generated_reply = generate_response(text, {"language": response_language,
+                    "history": list(reversed(history))})
+                reply = generated_reply or scripted_reply("fallback", response_language)
+                reply_source = getattr(generated_reply, "source",
+                    "unknown_model_source" if generated_reply else "scripted_fallback")
             buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
         participant.save()
         if (participant.consented and participant.onboarding_complete and not analyse
@@ -314,7 +353,7 @@ def process_message(participant, body, external_id):
                 "talk to a counsellor", "talk to counsellor", "session", "check in", "check in again", "check-in", "mood")
             and not command.isdigit()):
             analyse = True  # Include free text sent while choosing an appointment.
-        signal = assess(participant, text, classification) if analyse else None
+        signal = early_signal or (assess(participant, text, classification) if analyse else None)
         if classification:
             incoming.sentiment_label = classification.label
             incoming.sentiment_score = classification.confidence
@@ -324,10 +363,14 @@ def process_message(participant, body, external_id):
             priority, reason, source = signal
             create_alert(participant, priority, reason, source)
             if priority == "high":
-                reply = SUPPORT
+                if reply_source != "scripted_safety":
+                    reply = scripted_reply(response_kind if response_kind in ("urgent", "friend_risk")
+                                           else "urgent", response_language)
+                reply_source = "scripted_safety"
                 buttons = (("request_session", "Counsellor"),)
         incoming.reply = reply
-        incoming.save(update_fields=["reply", "sentiment_label", "sentiment_score",
+        incoming.reply_source = reply_source
+        incoming.save(update_fields=["reply", "reply_source", "sentiment_label", "sentiment_score",
                                      "sentiment_source", "sentiment_risk_eligible"])
         incoming.suggested_buttons = buttons
         queue_reply(incoming, buttons)
