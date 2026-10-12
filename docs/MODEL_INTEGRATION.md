@@ -82,7 +82,10 @@ multilingual coverage remain unfinished.
 
 ## Conversation model
 
-`generate_response(text, context)` still returns `None`. The separately trained
-conversation model needs its own evaluated artifact and adapter (issue #4).
-Recent context is supplied, but scripted replies remain. Sentiment inference
-does not generate WhatsApp replies.
+A separate GPU service now implements the conversation boundary. Django stays lightweight: it sends bounded completed history to the private endpoint, keeps sentiment independent, and falls back to scripted support on timeout or rejected output. See [CONVERSATION_SETUP.md](CONVERSATION_SETUP.md).
+
+Explicit safety phrases and active unresolved urgent alerts bypass conversation generation and create or preserve high-priority alerts for opted-in participants. Emergency guidance is available before onboarding; that path does not grant consent or add a new staff alert for someone who has not opted in. Configured Tier 1 keywords and mood rules continue independently. Clear direct negation is checked, but phrase rules are conservative and incomplete.
+
+Medication and diagnosis requests use scripted boundaries. Clearly positive check-ins receive acknowledgement instead of invented distress. English/Kiswahili output checks reject known cross-language words, extra speaker turns, incomplete generations, named drug suggestions and obvious fabricated service actions. These checks are implementation safeguards, not a complete multilingual safety classifier.
+
+The conversation feature is off by default. Candidate artifacts are private and revision-pinned in `model_server/candidate.json`. Supervised testing requires an explicit service-mode setting. A qualified counsellor and fluent language reviewers must review the workflow before real participants use it. No clinical approval or deployment is implied by training or passing software tests.
