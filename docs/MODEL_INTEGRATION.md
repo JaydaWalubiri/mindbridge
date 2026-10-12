@@ -44,8 +44,7 @@ and does not execute repository-supplied model code.
 
 For a UI check, finish demo onboarding, enter mood 3 and send an English note.
 Open the participant profile to see sentiment, score, source and baseline status.
-Previous messages are not automatically rescored. Replies stay scripted until
-the conversation model is connected.
+Previous messages are not automatically rescored. Replies use the pinned conversation service when enabled and configured, with scripted fallback.
 
 ## Hybrid integration testing
 
@@ -89,3 +88,7 @@ Explicit safety phrases and active unresolved urgent alerts bypass conversation 
 Medication and diagnosis requests use scripted boundaries. Clearly positive check-ins receive acknowledgement instead of invented distress. English/Kiswahili output checks reject known cross-language words, extra speaker turns, incomplete generations, named drug suggestions and obvious fabricated service actions. These checks are implementation safeguards, not a complete multilingual safety classifier.
 
 The conversation feature is off by default. Candidate artifacts are private and revision-pinned in `model_server/candidate.json`. Supervised testing requires an explicit service-mode setting. A qualified counsellor and fluent language reviewers must review the workflow before real participants use it. No clinical approval or deployment is implied by training or passing software tests.
+
+## Whole-system boundary checks
+
+The English baseline stores non-English and fewer-than-three-word predictions for review but excludes them from risk even in experimental risk mode. Language detection is a best-effort hint, not validated language classification. Disabling risk mode also prevents old experimental sentiment evidence from contributing to new alerts. The 0.85 threshold remains the proposal setting, not an evaluated clinical threshold.

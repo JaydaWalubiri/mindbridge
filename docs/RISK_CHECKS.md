@@ -5,7 +5,7 @@
 The conversation model generates replies. A separate sentiment classifier must
 return a label and confidence. A local English DistilBERT baseline adapter is
 now available; scores are excluded from risk by default pending evaluation.
-The conversation adapter remains unconnected. Rule tests use mock predictions
+The pinned conversation adapter has a guarded private-service client. A GPU host remains to be configured. Rule tests use mock predictions
 rather than claiming model performance. See [MODEL_INTEGRATION.md](MODEL_INTEGRATION.md).
 
 | Signal | Behaviour |
@@ -62,5 +62,7 @@ onboarding in the staff-only WhatsApp preview, and send fictional test text.
 create a Tier 1 alert when its active entry is present. Check the assigned
 counsellor's Alerts page. Existing independent mood evidence may still alert.
 
-Remaining work: reviewed multilingual dictionary, labelled risk evaluation,
-actual classifier integration, scheduled workers and live WhatsApp acceptance.
+A supervised `run_workers` process now schedules delivery, check-ins, escalation and retention, with persisted job status. `check_system` reports stale or failed jobs.
+
+Remaining work: reviewed multilingual dictionary, labelled risk evaluation, GPU/service hosting and live WhatsApp acceptance.
+
