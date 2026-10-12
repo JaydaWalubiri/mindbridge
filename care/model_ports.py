@@ -8,7 +8,7 @@ import json
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from django.conf import settings
-from .response_policy import language_name, rejection_reason, route, scripted_reply
+from .response_policy import language_name, rejection_reason, route, scripted_reply, select_language
 
 logger = logging.getLogger(__name__)
 _load_lock = threading.Lock()
@@ -69,7 +69,9 @@ def classify_note(text: str) -> Classification | None:
         if label not in {"negative", "neutral", "positive"} or not math.isfinite(score) or not 0 <= score <= 1:
             return None
         return Classification(label, score,
-            f"{settings.SENTIMENT_MODEL}@{settings.SENTIMENT_REVISION}", settings.SENTIMENT_RISK_ENABLED)
+            f"{settings.SENTIMENT_MODEL}@{settings.SENTIMENT_REVISION}",
+            settings.SENTIMENT_RISK_ENABLED and select_language(text) == "English"
+            and len(text.split()) >= 3)
     except Exception as error:
         logger.warning("Sentiment inference failed (%s); rules remain active.", type(error).__name__)
         return None

@@ -39,6 +39,9 @@ def assess(person, text="", classification=None):
     if low:
         return "medium", "Consecutive low weekly moods", "mood rule"
     layers = set(person.risk_evidence.filter(recorded_at__gte=now-timedelta(days=7)).values_list("layer",flat=True))
+    if not settings.SENTIMENT_RISK_ENABLED and not (classification and classification.risk_eligible):
+        layers.discard("sentiment")
     if evidence and len(layers)>=2:
         return "medium", "Combined risk signals", ", ".join(sorted(layers))
     return None
+

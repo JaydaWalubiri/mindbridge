@@ -126,7 +126,7 @@ def deliver_due(limit=50):
                     raise ValueError("Turn did not return a message ID")
             except (OSError, ValueError, RuntimeError) as error:
                 item.attempts += 1
-                item.last_error = type(error).__name__ + ": " + str(error)[:190]
+                item.last_error = type(error).__name__
                 item.status = "failed" if item.attempts >= 5 else "pending"
                 item.next_attempt_at = timezone.now() + timedelta(minutes=min(60, 2 ** item.attempts))
                 item.save(update_fields=["attempts", "last_error", "status", "next_attempt_at"])
@@ -208,7 +208,7 @@ def process_message(participant, body, external_id):
         response_language = select_language(text, participant.preferred_language)
         active_safety = participant.alerts.filter(status="open", priority="high",
             trigger_source__in=("Tier-1 keyword override", "response safety override")).first()
-        if not response_kind and active_safety:
+        if not response_kind and active_safety and participant.consented:
             response_kind = "urgent"
         early_signal = None
         if command in ("delete my data", "delete data"):
@@ -232,6 +232,12 @@ def process_message(participant, body, external_id):
             # Emergency guidance must not wait for onboarding or model/network calls.
             reply = scripted_reply(response_kind, response_language)
             reply_source = "scripted_safety"
+            # Keep emergency guidance while allowing an opted-in person to request help.
+            if participant.consented and participant.onboarding_complete:
+                if command in ("counsellor", "talk to a counsellor", "talk to counsellor", "session"):
+                    reply += "\n\n" + slot_prompt(participant)
+                elif participant.flow_state == "booking" and command.isdigit():
+                    reply += "\n\n" + select_booking(participant, command)
             if participant.consented:
                 early_signal = (active_safety.priority, active_safety.reason,
                     active_safety.trigger_source) if active_safety else assess(participant, text) or (
@@ -329,7 +335,9 @@ def process_message(participant, body, external_id):
                 priority, reason, source = early_signal
                 create_alert(participant, priority, reason, source)
             history = list(participant.inbound_messages.exclude(pk=incoming.pk)
-                .exclude(reply="").order_by("-received_at").values("body", "reply")[:6])
+                .exclude(reply="").exclude(reply_source__in=("", "scripted_workflow", "scripted_safety"))
+                .filter(received_at__gte=participant.consented_at or participant.created_at)
+                .order_by("-received_at").values("body", "reply")[:6])
             if early_signal and early_signal[0] == "high":
                 reply = scripted_reply("urgent", response_language)
             else:
@@ -355,8 +363,9 @@ def process_message(participant, body, external_id):
             priority, reason, source = signal
             create_alert(participant, priority, reason, source)
             if priority == "high":
-                reply = scripted_reply(response_kind if response_kind in ("urgent", "friend_risk")
-                                       else "urgent", response_language)
+                if reply_source != "scripted_safety":
+                    reply = scripted_reply(response_kind if response_kind in ("urgent", "friend_risk")
+                                           else "urgent", response_language)
                 reply_source = "scripted_safety"
                 buttons = (("request_session", "Counsellor"),)
         incoming.reply = reply

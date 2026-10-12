@@ -181,3 +181,10 @@ class RiskEvidence(models.Model):
 
     class Meta:
         ordering = ["-recorded_at"]
+
+
+class WorkerStatus(models.Model):
+    task = models.CharField(max_length=20, unique=True)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    last_success_at = models.DateTimeField(null=True, blank=True)
+    last_error_type = models.CharField(max_length=64, blank=True)

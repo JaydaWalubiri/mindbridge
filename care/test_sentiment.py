@@ -44,6 +44,13 @@ class SentimentAdapterTests(SimpleTestCase):
     def test_explicit_risk_opt_in(self):
         self.assertTrue(self.predict().risk_eligible)
 
+    @override_settings(SENTIMENT_RISK_ENABLED=True)
+    def test_non_english_and_short_scores_are_not_risk_evidence(self):
+        for text in ("Nimelemewa na mawazo leo", "Leo niko down sana", "sad", "😔"):
+            with self.subTest(text=text), patch("care.model_ports._load_model", return_value=(self.tokenizer, self.model)), patch.dict(sys.modules, {"torch": self.torch}):
+                result = classify_note(text)
+                self.assertFalse(result.risk_eligible)
+
     @override_settings(SENTIMENT_ENABLED=False)
     def test_disabled_does_not_load(self):
         with patch("care.model_ports._load_model") as loader:
@@ -141,3 +148,4 @@ class SentimentStorageTests(TestCase):
         self.assertEqual(self.mood.sentiment_label, "")
         self.assertIsNone(self.mood.sentiment_score)
         self.assertEqual(self.mood.sentiment_source, "")
+
