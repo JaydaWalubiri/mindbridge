@@ -92,6 +92,7 @@ class InboundMessage(models.Model):
     body = models.TextField(blank=True)
     received_at = models.DateTimeField(auto_now_add=True)
     reply = models.TextField(blank=True)
+    reply_source = models.CharField(max_length=256, blank=True)
     sentiment_label = models.CharField(max_length=32, blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
     sentiment_source = models.CharField(max_length=512, blank=True)
