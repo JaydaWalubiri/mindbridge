@@ -44,7 +44,14 @@ AUTH_PASSWORD_VALIDATORS = [{"NAME": "django.contrib.auth.password_validation.Us
 LANGUAGE_CODE = "en-ke"
 TIME_ZONE = "Africa/Nairobi"
 USE_TZ = True
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+if os.environ.get("DJANGO_SERVE_STATIC", "0") == "1":
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+# Enable only behind a trusted proxy which overwrites X-Forwarded-Proto.
+if os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if x.strip()]
 STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 LOGIN_URL = "login"
