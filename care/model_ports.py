@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from django.conf import settings
 from .response_policy import language_name, rejection_reason, route, scripted_reply, select_language
+from .context_support import context_support
 
 logger = logging.getLogger(__name__)
 _load_lock = threading.Lock()
@@ -82,6 +83,13 @@ def generate_response(text: str, context: dict) -> str | None:
     kind = route(text)
     if kind:
         return ReplyText(scripted_reply(kind, language), "scripted_" + kind)
+    context_history = []
+    for item in context.get("history", []):
+        if isinstance(item, dict) and item.get("body"):
+            context_history.append({"role": "user", "content": str(item["body"])})
+    support = context_support(text, language, context_history)
+    if support:
+        return ReplyText(support.reply, "scripted_context")
     if not settings.CONVERSATION_ENABLED:
         return None
     fallback = ReplyText(scripted_reply("fallback", language), "scripted_fallback")
@@ -114,7 +122,7 @@ def generate_response(text: str, context: dict) -> str | None:
             return fallback
         source = result.get("model_source")
         expected = settings.CONVERSATION_EXPECTED_SOURCE
-        if not expected or source not in {expected, "scripted_fallback", "scripted_safeguard"}:
+        if not expected or source not in {expected, "scripted_fallback", "scripted_safeguard", "scripted_context"}:
             return fallback
         reply = result.get("reply")
         if rejection_reason(reply, language, result.get("token_limit_reached", False)):
