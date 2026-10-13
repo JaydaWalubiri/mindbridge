@@ -64,7 +64,7 @@ For **fictional integration testing only**, `SENTIMENT_RISK_ENABLED=1` allows el
 
 Follow [CONVERSATION_SETUP.md](CONVERSATION_SETUP.md). The adapter is saved and revision-pinned; do not restart Kaggle training. You need a private, authenticated GPU service URL. Hugging Face's model page is not a running API. Run `check_conversation` after setting its URL and service token.
 
-The candidate is for supervised testing. Native-language and clinician review, broader held-out tests, and real-host latency checks remain. One held-out Sheng response misunderstood arriving late; automated output checks cannot catch every semantic mistake.
+The candidate is for supervised testing. Native-language and clinician review, broader held-out tests, and real-host latency checks remain. The known Sheng late-arrival mistake now uses a labelled contextual script. Raw generations can still misunderstand new situations; the October 13 experimental repair was not selected. See `docs/CONVERSATION_SETUP.md` for the distinction between scripted regressions and model evaluation.
 
 ## 5. Run jobs and prepare PostgreSQL hosting
 
