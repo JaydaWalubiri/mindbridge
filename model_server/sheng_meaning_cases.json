@@ -1,0 +1,131 @@
+[
+  {
+    "id": "original_regression",
+    "prompt": "Nimefika practice late na naogopa coach atanifokea.",
+    "expected": "Already arrived late; fear coach reaction, not a postponed event.",
+    "language": "Sheng",
+    "intent": "arrived_late"
+  },
+  {
+    "id": "fresh_arrival",
+    "prompt": "Nimefika training late na coach hajaniambia kitu bado. Niko na wasiwasi.",
+    "expected": "Arrived late, coach has not reacted; do not invent a reprimand.",
+    "language": "Sheng",
+    "intent": "arrived_late"
+  },
+  {
+    "id": "fresh_meeting",
+    "prompt": "Leo nimechelewa kufika kwa meeting. Wasee walikuwa wameanza tayari.",
+    "expected": "Meeting already started; user arrived late, event was not postponed.",
+    "language": "Sheng",
+    "intent": "arrived_late"
+  },
+  {
+    "id": "fresh_bus",
+    "prompt": "Bus ilichelewa, nimefika class saa hii na teacher ako vex.",
+    "expected": "Late arrival due to bus; do not invent laziness or a cancelled class.",
+    "language": "Sheng",
+    "intent": "arrived_after_delay"
+  },
+  {
+    "id": "fresh_future",
+    "prompt": "Nitafika training late juu mat imekwama kwa jam. Nimwambie coach nini?",
+    "expected": "Future late arrival due to traffic; help notify coach, do not claim already arrived.",
+    "language": "Sheng",
+    "intent": "future_late"
+  },
+  {
+    "id": "postponement_control",
+    "prompt": "Practice imeahirishwa hadi kesho, si ati mimi nimechelewa.",
+    "expected": "Practice actually postponed; user denies being late.",
+    "language": "Sheng",
+    "intent": "rescheduled"
+  },
+  {
+    "id": "on_time_control",
+    "prompt": "Nilifika practice on time lakini nilisahau boots. Nifanye nini?",
+    "expected": "Arrived on time but forgot boots; do not invent lateness.",
+    "language": "Sheng",
+    "intent": "on_time_forgot"
+  },
+  {
+    "id": "fear_control",
+    "prompt": "Sijachelewa bado, nafeel wasee watanijudge nikifika late.",
+    "expected": "Worried about possible lateness; do not claim lateness already occurred.",
+    "language": "Sheng",
+    "intent": "not_late_yet"
+  },
+  {
+    "id": "new_debate_arrival",
+    "language": "Sheng",
+    "prompt": "Nimeingia debate dakika tano late. Judge bado hajaniambia kitu na niko tense.",
+    "expected": "Already arrived late; judge has not reacted; do not postpone debate.",
+    "intent": "arrived_late"
+  },
+  {
+    "id": "new_bus_future",
+    "language": "Sheng",
+    "prompt": "Bado niko kwa bus. Nitachelewa kufika kwa interview juu traffic. Nitumie message gani?",
+    "expected": "Future late arrival due to traffic; suggest accurate notification without invented time.",
+    "intent": "future_late"
+  },
+  {
+    "id": "new_rescheduled",
+    "language": "Sheng",
+    "prompt": "Film club imehamisha screening iwe Saturday. Mimi sikufika late.",
+    "expected": "Screening rescheduled by club; user denies late arrival.",
+    "intent": "rescheduled"
+  },
+  {
+    "id": "new_punctual",
+    "language": "Sheng",
+    "prompt": "Nilifika interview on time lakini nikasahau ID kwa nyumba.",
+    "expected": "On-time arrival and forgotten ID; do not invent lateness.",
+    "intent": "on_time_forgot"
+  },
+  {
+    "id": "new_possible",
+    "language": "Sheng",
+    "prompt": "Kesho naogopa kuingia exam late, lakini leo sijachelewa kitu.",
+    "expected": "Concern about possible future lateness; no present late arrival.",
+    "intent": "not_late_yet"
+  },
+  {
+    "id": "new_actual_reaction",
+    "language": "Sheng",
+    "prompt": "Nimewasili shop late na boss amenifokea tayari. Nafeel shaken.",
+    "expected": "Late arrival and actual reprimand occurred; do not describe reaction as unknown.",
+    "intent": "arrived_reprimanded"
+  },
+  {
+    "id": "new_sw_arrival",
+    "language": "Kiswahili",
+    "prompt": "Nimefika kwenye kikundi cha kusoma kwa kuchelewa, wengine tayari wameanza.",
+    "expected": "Already arrived after study group started; reply in Kiswahili.",
+    "intent": "arrived_late"
+  },
+  {
+    "id": "new_en_future",
+    "language": "English",
+    "prompt": "I am still on the ferry and will be late to the club. How can I let them know?",
+    "expected": "Still travelling; notify club of future lateness without fabricated arrival time.",
+    "intent": "future_late"
+  },
+  {
+    "id": "new_multi_correction",
+    "language": "Sheng",
+    "prompt": "Sasa nimeshafika. Naogopa leader atanifokea, bado hajasema kitu.",
+    "history": [
+      {
+        "role": "user",
+        "content": "Niko njiani na naona nitachelewa kwa meeting."
+      },
+      {
+        "role": "assistant",
+        "content": "Unaweza notify leader unatarajia kufika late."
+      }
+    ],
+    "expected": "Latest turn says already arrived; leader has not reacted; do not keep treating arrival as future.",
+    "intent": "arrived_after_worry"
+  }
+]

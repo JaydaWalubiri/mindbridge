@@ -12,6 +12,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, model_validator
 
 from care.response_policy import (rejection_reason, route, scripted_reply)
+from care.context_support import context_support
 
 ROOT = Path(__file__).resolve().parent
 
@@ -148,6 +149,11 @@ def create_app(engine=None, token=None):
         if kind:
             return {"reply": scripted_reply(kind, request.language), "language": request.language,
                     "route": kind, "model_source": "scripted_safeguard", "rejected": False}
+        support = context_support(request.message, request.language,
+                                  [turn.model_dump() for turn in request.history])
+        if support:
+            return {"reply": support.reply, "language": request.language,
+                    "route": support.intent, "model_source": "scripted_context", "rejected": False}
         if not lock.acquire(blocking=False):
             raise HTTPException(503, "Model busy")
         try:
