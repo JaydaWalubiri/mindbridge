@@ -241,18 +241,23 @@ def availability(request):
                 messages.success(request, "Available appointment time added.")
                 return redirect("availability")
     return render(request, "care/availability.html", {"active": "availability", "form": form,
-        "slots": AvailabilitySlot.objects.filter(starts_at__gt=timezone.now()).filter(Q(counsellor=request.user) if not request.user.is_staff else Q()).select_related("counsellor")})
+        "slots": AvailabilitySlot.objects.filter(starts_at__gt=timezone.now()).filter(Q(is_active=True) | Q(session__isnull=False)).filter(Q(counsellor=request.user) if not request.user.is_staff else Q()).select_related("counsellor")})
 
 
 @login_required
 @require_POST
 def remove_availability(request, pk):
-    slot = get_object_or_404(AvailabilitySlot.objects.all() if request.user.is_staff else AvailabilitySlot.objects.filter(counsellor=request.user), pk=pk)
-    if slot.session_id:
-        messages.error(request, "Cancel the booked appointment before removing this time.")
-    else:
-        slot.is_active = False
-        slot.save(update_fields=["is_active"])
+    slots = AvailabilitySlot.objects.all() if request.user.is_staff else AvailabilitySlot.objects.filter(counsellor=request.user)
+    slot = get_object_or_404(slots, pk=pk)
+    with transaction.atomic():
+        # Use the same counsellor lock as booking, then recheck the slot.
+        get_user_model().objects.select_for_update().get(pk=slot.counsellor_id)
+        slot = get_object_or_404(slots.select_for_update(), pk=pk)
+        if slot.session_id:
+            messages.error(request, "Cancel the booked appointment before removing this time.")
+        else:
+            slot.delete()
+            messages.success(request, "Available appointment time deleted.")
     return redirect("availability")
 
 

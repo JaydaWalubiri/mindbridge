@@ -60,7 +60,7 @@ If there are no available times, the chat records a pending request instead. The
 - **Alerts**: Reason and Trigger source are separate columns; keyword alerts also show the matched phrases. Save an outcome and optional review note; verify it under Reviewed.
 - **Participant profile**: the **Book counselling session +** button is at the top; inspect four-week moods and recent messages.
 - **Sessions**: mark a fictional appointment completed or cancelled. Cancellations stop any pending booking confirmation.
-- **My availability**: add or remove future times. Overlaps are rejected. Booked times cannot be removed directly.
+- **My availability**: add or remove future times. Removing an unbooked time deletes the slot from the database; inactive unbooked times are not listed. Overlaps are rejected. Booked times cannot be removed directly, and session history is preserved.
 - **Admin dashboard**: monitor total participants, open alerts, pending request counts, review completion, assignment waiting list, overdue alerts, deletion requests and template/queue readiness. Create counsellor accounts and profiles, maintain keywords and set initial availability.
 - **Django admin**: manage counsellor accounts, eligibility, participant assignments and keywords. Case records (moods, alerts, sessions, requests and messages) are read-only, including for the superuser. Create/remove slots through the validated availability UI.
 
