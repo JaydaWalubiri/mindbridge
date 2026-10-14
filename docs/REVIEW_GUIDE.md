@@ -35,7 +35,7 @@ Run `prepare_test_data` once after migrations, with `DJANGO_DEBUG=1`. It creates
 
 All names and records are fictional. Counsellors are active ordinary users, not staff/superusers. Test profiles receive local simulator assignments and are excluded from automatic live-participant assignment. No phone numbers or WhatsApp notification opt-ins are added. Use your existing superuser to view the administrator screens.
 
-There are six appointment slots per counsellor: tomorrow and the next two days at 10:00 and 14:00 EAT. Samuel has one scheduled appointment; Daniel has a pending request. Details and expected alerts are in [TEST_DATA.md](TEST_DATA.md). You can add further times through **My availability**; an administrator can choose a counsellor, while ordinary counsellors only manage their own times.
+There are six appointment slots per counsellor: tomorrow and the next two days at 10:00 and 14:00 EAT. Samuel has one scheduled appointment; Daniel has a pending request. Details and expected alerts are in [TEST_DATA.md](TEST_DATA.md). You can add further times through **Counsellor availability** as administrator or **My availability** as counsellor; an administrator must choose a counsellor, while ordinary counsellors only manage their own times.
 
 ## Review the participant journey
 
@@ -53,7 +53,7 @@ Open http://127.0.0.1:8000/preview/whatsapp/ while signed in as staff. This simu
 
 The simulator saves `MB-CHAT-*` records in the local database, but never creates outbound provider messages. Refresh dashboard pages to see updates. You do not need to connect a model or Turn account for this review.
 
-If there are no available times, the chat records a pending request instead. The assigned counsellor's overview lists that request. The administrator sees it too. Add a slot or use the **Schedule session** button to arrange it manually.
+If there are no available times, the chat records a pending request instead. The assigned counsellor's overview lists that request. The administrator sees the aggregate pending count. Add a slot as administrator, or sign in as the assigned counsellor to use **Schedule session**.
 
 ## Review counsellor and administrator controls
 
@@ -61,8 +61,10 @@ If there are no available times, the chat records a pending request instead. The
 - **Participant profile**: the **Book counselling session +** button is at the top; inspect four-week moods and recent messages.
 - **Sessions**: mark a fictional appointment completed or cancelled. Cancellations stop any pending booking confirmation.
 - **My availability**: add or remove future times. Overlaps are rejected. Booked times cannot be removed directly.
-- **Admin dashboard**: inspect pending requests, assignment waiting list, overdue alerts, deletion requests and template/queue readiness.
-- **Django admin**: manage users, counsellor eligibility, keyword settings and operational records. Appointment slots are inspected here; create/remove them through the validated availability UI.
+- **Admin dashboard**: monitor total participants, open alerts, pending request counts, review completion, assignment waiting list, overdue alerts, deletion requests and template/queue readiness. Create counsellor accounts and profiles, maintain keywords and set initial availability.
+- **Django admin**: manage counsellor accounts, eligibility, participant assignments and keywords. Case records (moods, alerts, sessions, requests and messages) are read-only, including for the superuser. Create/remove slots through the validated availability UI.
+
+Administrators land on the administration dashboard after login and cannot open counsellor case pages or submit review, booking or session-status actions. This follows proposal sections 3.6.4, 3.6.6 and 3.6.7: admins oversee overdue follow-up; assigned counsellors review cases and manage sessions. The WhatsApp simulator remains a DEBUG-only testing tool and is not a live admin conversation channel.
 
 Use a private browser window to sign in as the counsellor. They should see only assigned participants and their associated requests, alerts and sessions, and cannot access staff administration or the simulator.
 

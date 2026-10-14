@@ -120,14 +120,14 @@ class AccessTests(TestCase):
         self.assertEqual(self.client.get(reverse("participant_detail", args=[self.person.pk])).status_code, 404)
         self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 302)
 
-    def test_staff_can_review_alert_with_post_only(self):
+    def test_staff_cannot_review_alert_but_can_monitor(self):
         alert = RiskAlert.objects.create(participant=self.person, reason="Check-in review")
         self.client.force_login(self.admin)
         url = reverse("review_alert", args=[alert.pk])
         self.assertEqual(self.client.get(url).status_code, 405)
-        self.assertEqual(self.client.post(url).status_code, 302)
+        self.assertEqual(self.client.post(url).status_code, 403)
         alert.refresh_from_db()
-        self.assertEqual(alert.status, "reviewed")
+        self.assertEqual(alert.status, "open")
         self.assertEqual(self.client.get(reverse("admin_dashboard")).status_code, 200)
         self.assertEqual(self.client.get(reverse("whatsapp_preview")).status_code, 404)
 
@@ -308,10 +308,15 @@ class ProposalWorkflowTests(TestCase):
 
     def test_all_review_pages_render(self):
         person=self.person()
-        self.client.force_login(self.admin)
-        for url in ["/","/alerts/","/participants/",f"/participants/{person.pk}/",f"/participants/{person.pk}/sessions/new/","/sessions/","/availability/","/workspace-admin/","/preview/whatsapp/"]:
+        self.client.force_login(person.counsellor)
+        for url in ["/", "/alerts/", "/participants/", f"/participants/{person.pk}/", f"/participants/{person.pk}/sessions/new/", "/sessions/", "/availability/"]:
             with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code,200)
+                self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.force_login(self.admin)
+        for url in ["/availability/", "/workspace-admin/", "/preview/whatsapp/"]:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertRedirects(self.client.get("/"), reverse("admin_dashboard"))
 
     def test_availability_validation_and_staff_creation_for_counsellor(self):
         when=self.now+timedelta(days=3)

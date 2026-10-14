@@ -40,7 +40,7 @@ Alerts display **Reason**, **Trigger source**, **Matched phrases** where recorde
 ## Suggested checks
 
 1. Log in as your administrator; confirm the header is clean and the operational panel appears once in the page body.
-2. Inspect the four prepared alerts, the scheduled session and Daniel's pending request.
+2. Inspect administrative counts and read-only records; use the counsellor accounts to review the four prepared alerts, Samuel's session and Daniel's pending request.
 3. In a private browser window, sign in as Amina: only Kelvin and Peter should appear. Repeat for the other counsellors.
 4. In the administrator's WhatsApp preview, start a new conversation, agree, enter `Kevin Kamau`, age `19`, mood `3` and a note.
 5. Confirm a named counsellor is assigned, choose **Counsellor**, select a future slot, and inspect the booked session on that counsellor's dashboard.

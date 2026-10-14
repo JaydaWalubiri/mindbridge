@@ -112,6 +112,7 @@ class PrepareWorkspaceTests(TestCase):
         self.assertTrue(person.code.startswith('MB-CHAT-')); self.assertEqual(person.display_name, 'Kevin')
         self.assertTrue(person.counsellor.care_profile.is_simulated)
         self.assertTrue(person.alerts.filter(priority='high').exists())
+        self.client.force_login(person.counsellor)
         self.assertContains(self.client.get(reverse('alerts')), 'might hurt myself')
         self.assertFalse(OutboundMessage.objects.exists())
     def test_full_booking_journey_reaches_named_counsellor_dashboard(self):

@@ -1,5 +1,6 @@
 import json
 import uuid
+from functools import wraps
 from json import JSONDecodeError
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -9,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
 from datetime import timedelta
-from django.http import HttpResponseNotAllowed, JsonResponse, Http404
+from django.http import HttpResponseNotAllowed, JsonResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -20,11 +21,22 @@ from .services import process_message, queue_session_confirmation, valid_turn_si
 
 
 def assigned(user):
-    return Participant.objects.all() if user.is_staff else Participant.objects.filter(counsellor=user)
+    return Participant.objects.filter(counsellor=user)
+
+
+def counsellor_only(view):
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        if request.user.is_staff:
+            return HttpResponseForbidden("Case review and session actions require the assigned counsellor account.")
+        return view(request, *args, **kwargs)
+    return wrapped
 
 
 @login_required
 def dashboard(request):
+    if request.user.is_staff:
+        return redirect("admin_dashboard")
     people = assigned(request.user)
     open_alerts = RiskAlert.objects.filter(participant__in=people, status=RiskAlert.OPEN)
     pending = SessionRequest.objects.filter(participant__in=people, status="pending").select_related("participant")
@@ -39,6 +51,7 @@ def dashboard(request):
 
 
 @login_required
+@counsellor_only
 def alerts(request):
     status = request.GET.get("status", "open")
     if status not in ("open", "reviewed", "all"):
@@ -51,6 +64,7 @@ def alerts(request):
 
 @login_required
 @require_POST
+@counsellor_only
 def review_alert(request, pk):
     alert = get_object_or_404(RiskAlert, pk=pk, participant__in=assigned(request.user))
     if alert.status == RiskAlert.OPEN:
@@ -68,6 +82,7 @@ def review_alert(request, pk):
 
 
 @login_required
+@counsellor_only
 def participants(request):
     q = request.GET.get("q", "").strip()
     people = assigned(request.user)
@@ -77,6 +92,7 @@ def participants(request):
 
 
 @login_required
+@counsellor_only
 def participant_detail(request, pk):
     person = get_object_or_404(assigned(request.user), pk=pk)
     moods = list(person.moods.filter(recorded_at__gte=timezone.now()-timedelta(days=28)).order_by("recorded_at"))
@@ -89,18 +105,20 @@ def participant_detail(request, pk):
 
 
 @login_required
+@counsellor_only
 def sessions(request):
     items = Session.objects.filter(participant__in=assigned(request.user)).select_related("participant", "counsellor")
     return render(request, "care/sessions.html", {"sessions": items, "active": "sessions"})
 
 
 @login_required
+@counsellor_only
 def book_session(request, pk):
     person = get_object_or_404(assigned(request.user), pk=pk)
     form = SessionForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         from .workflows import book_appointment
-        user = person.counsellor if request.user.is_staff and person.counsellor_id else request.user
+        user = request.user
         try:
             session, queued = book_appointment(person, user, form.cleaned_data["starts_at"])
         except ValueError as error:
@@ -127,14 +145,15 @@ def admin_dashboard(request):
         "unassigned": Participant.objects.filter(onboarding_complete=True, counsellor__isnull=True),
         "reviewed_count": RiskAlert.objects.filter(status="reviewed").count(),
         "all_alert_count": RiskAlert.objects.count(),
+        "response_rate": round(100 * RiskAlert.objects.filter(status="reviewed").count() / RiskAlert.objects.count()) if RiskAlert.objects.exists() else 0,
+        "counsellors": CounsellorProfile.objects.filter(user__is_staff=False).select_related("user").order_by("user__first_name", "user__username"),
         "deletion_requests": Participant.objects.filter(deletion_requested_at__isnull=False),
         "staff_template_ready": bool(settings.TURN_STAFF_TEMPLATE_NAME and settings.TURN_TEMPLATE_NAMESPACE),
         "support_template_ready": bool(settings.TURN_SUPPORT_TEMPLATE_NAME and settings.TURN_TEMPLATE_NAMESPACE),
-        "active": "admin", "participants_count": Participant.objects.count(),
-        "counsellor_count": CounsellorProfile.objects.filter(user__is_active=True).count(),
+        "debug_preview": settings.DEBUG, "active": "admin", "participants_count": Participant.objects.count(),
+        "counsellor_count": CounsellorProfile.objects.filter(user__is_active=True, user__is_staff=False).count(),
         "pending_count": SessionRequest.objects.filter(status="pending").count(),
         "open_count": RiskAlert.objects.filter(status="open").count(),
-        "pending": SessionRequest.objects.filter(status="pending").select_related("participant")[:8],
         "keywords": Keyword.objects.filter(is_active=True).count(),
         "outbound_pending": OutboundMessage.objects.filter(status="pending").count(),
         "outbound_failed": OutboundMessage.objects.filter(status="failed").count(),
@@ -239,6 +258,7 @@ def remove_availability(request, pk):
 
 @login_required
 @require_POST
+@counsellor_only
 def update_session(request, pk):
     session = get_object_or_404(Session, pk=pk, participant__in=assigned(request.user))
     status = request.POST.get("status")

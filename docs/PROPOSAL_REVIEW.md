@@ -18,9 +18,10 @@ Source: `JadaWalubiri_162903_EmannuelOlang'.pdf`, uploaded 15 July 2026, especia
 | Counsellor alerts and escalation | Dashboard records only | Staff template queue, opt-in contacts, high-priority ordering, 24-hour escalation log and admin overdue list |
 | Support after overdue alert | Missing | Recent-window text or approved support template; deployment/settings needed for delivery |
 | Participant selects time in WhatsApp | Staff-only manual booking | Numbered available slots from assigned counsellor, persistent choices, transactional booking and stale-slot handling |
-| Manage counsellor availability | Missing | Availability page; staff can create slots for another counsellor; 30-minute overlap checks |
+| Manage counsellor availability | Missing | Admins set availability for a selected counsellor; counsellors manage their own slots; 30-minute overlap checks |
+| Administrator role (sections 3.6.4–3.6.7) | Shared portal allowed administrators to review cases and alter sessions | Separate admin landing/navigation; account, assignment, keyword and operational controls; overdue oversight and review-completion metric; case review and session actions restricted to counsellors, including read-only case records in Django admin |
 | Session confirmations to both parties | Participant confirmation only | Participant confirmation plus staff template notice when configured; recorded booking is visible without Turn |
-| Pending requests in counsellor workspace | Admin-only request list | Assigned-counsellor pending request list, also visible to staff |
+| Pending requests in counsellor workspace | Admin-only request list | Assigned-counsellor pending request list; administrators monitor aggregate pending counts |
 | Complete/cancel sessions | Admin record edit only | Explicit session actions; cancellation stops a pending confirmation |
 | Four-week mood history | Most recent records regardless of time | Four-week profile chart and check-in history |
 | Feedback on true/false positives | Only mark reviewed | Confirmed concern / false positive / follow-up outcome and optional note with reviewer/time |

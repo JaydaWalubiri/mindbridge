@@ -36,9 +36,9 @@ Sign in at `http://127.0.0.1:8000/login/`.
 1. Inspect the prepared participants and alerts, then open **Availability** to see the ready-made 30-minute slots.
 2. Open the staff-only **WhatsApp flow preview** at `/preview/whatsapp/`. This saves fictional test records and never queues messages to Turn, even if Turn credentials exist.
 3. Agree, choose a fictional nickname and adult age, enter a mood score, and send a fictional English note. Onboarding assigns an eligible active counsellor automatically. Inspect the participant profile and mood history.
-4. Choose **Counsellor**. The request appears on the assigned counsellor dashboard; numbered future slots appear in chat. Select a slot and verify it on **Sessions**. If there are no slots, the request waits for staff.
+4. Choose **Counsellor**. The request appears on the assigned counsellor dashboard; numbered future slots appear in chat. Select a slot and verify it on **Sessions** after signing in as the assigned counsellor in a private window. If there are no slots, the request waits for that counsellor; the administrator can add availability.
 5. With a new fictional demo conversation, use `I feel hopeless about school` to inspect Tier-2 behaviour. This phrase alone should not create a combined alert without another eligible layer. Use the direct safety phrase `I intend to take my own life today` to verify immediate emergency guidance and an alert, then verify **Counsellor** and slot selection still work.
-6. Review the alert outcome, pause check-ins, and inspect privacy/deletion options. Urgent guidance does not claim an appointment or staff action has already happened.
+6. Sign in as the assigned counsellor to review the alert outcome. Use the simulator to pause check-ins and inspect privacy/deletion options. Urgent guidance does not claim an appointment or staff action has already happened.
 
 Participants use normal WhatsApp in a live setup. The web WhatsApp-style interface remains a restricted staff testing tool.
 

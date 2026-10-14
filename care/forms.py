@@ -18,7 +18,7 @@ class SessionForm(forms.ModelForm):
 
 
 class AvailabilityForm(forms.Form):
-    counsellor = forms.ModelChoiceField(queryset=None, required=False)
+    counsellor = forms.ModelChoiceField(queryset=None, required=True)
     starts_at = SessionForm.base_fields["starts_at"]
 
     def clean_starts_at(self):
@@ -30,6 +30,6 @@ class AvailabilityForm(forms.Form):
     def __init__(self, *args, user, **kwargs):
         from django.contrib.auth import get_user_model
         super().__init__(*args, **kwargs)
-        self.fields["counsellor"].queryset = get_user_model().objects.filter(is_active=True, care_profile__isnull=False)
+        self.fields["counsellor"].queryset = get_user_model().objects.filter(is_active=True, is_staff=False, care_profile__isnull=False)
         if not user.is_staff:
             self.fields.pop("counsellor")
