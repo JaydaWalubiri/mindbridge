@@ -13,8 +13,12 @@ def assign_counsellor(person):
         return person.counsellor
     with transaction.atomic():
         cursor = AssignmentRotation.objects.select_for_update().get(pk=1)
-        profiles = list(CounsellorProfile.objects.filter(accepts_assignments=True,
-                         user__is_active=True).select_related("user").order_by("user_id"))
+        eligible = CounsellorProfile.objects.filter(accepts_assignments=True, user__is_active=True)
+        if not person.is_simulated:
+            eligible = eligible.filter(is_simulated=False)
+        elif eligible.filter(is_simulated=True).exists():
+            eligible = eligible.filter(is_simulated=True)
+        profiles = list(eligible.select_related("user").order_by("user_id"))
         if not profiles:
             return None
         selected = next((p for p in profiles if p.user_id > cursor.last_user_id), profiles[0])
@@ -41,11 +45,21 @@ def queue_staff_notice(person, user, message, key):
 
 
 def create_alert(person, priority, reason, source):
+    terms = []
+    if "keyword" in source.casefold():
+        evidence = person.risk_evidence.filter(layer="keyword", reason__startswith="Matched phrase: ",
+            recorded_at__gte=timezone.now()-timedelta(days=7)).order_by("-recorded_at")
+        terms = list(dict.fromkeys(item.reason.removeprefix("Matched phrase: ") for item in evidence))
     existing = person.alerts.filter(status="open", reason=reason,
                                     created_at__gte=timezone.now()-timedelta(days=1)).first()
     if existing:
+        updated = list(dict.fromkeys([*existing.matched_terms, *terms]))
+        if updated != existing.matched_terms:
+            existing.matched_terms = updated
+            existing.save(update_fields=["matched_terms"])
         return existing
-    alert = RiskAlert.objects.create(participant=person, priority=priority, reason=reason, trigger_source=source)
+    alert = RiskAlert.objects.create(participant=person, priority=priority, reason=reason,
+                                    trigger_source=source, matched_terms=terms)
     queue_staff_notice(person, person.counsellor,
                        f"MindBridge: review {person.code} ({priority} priority) in your dashboard.", f"alert:{alert.pk}")
     return alert

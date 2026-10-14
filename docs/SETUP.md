@@ -13,12 +13,12 @@ $env:DJANGO_DEBUG = "1"
 .\.venv\Scripts\python.exe manage.py migrate
 # First setup only: create an administrator account.
 .\.venv\Scripts\python.exe manage.py createsuperuser
-# Optional: clearly fictional records and a demo counsellor profile.
-.\.venv\Scripts\python.exe manage.py seed_demo
+# Prepare named fictional counsellors, participants, appointment times and keywords.
+.\.venv\Scripts\python.exe manage.py prepare_test_data
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-For an existing checkout, stop Django, run `git status -sb` and then `git pull --ff-only` if your working tree is clean; reinstall requirements and run migrations before restarting. See the review guide for account and participant steps. No account passwords are shipped.
+For an existing checkout, stop Django, run `git status -sb` and then `git pull --ff-only` if your working tree is clean; reinstall requirements and run migrations before restarting. See the review guide for account and participant steps. The preparation command prints randomly generated passwords for new counsellors. Save them; reruns preserve passwords and review decisions.
 
 macOS/Linux: use `python -m venv .venv`, `source .venv/bin/activate`, `pip install -r requirements.txt`, `export DJANGO_DEBUG=1`, then the same `python manage.py ...` commands.
 

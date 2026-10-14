@@ -15,15 +15,21 @@ VARIANTS = {
     "feel trapped": ("feeling trapped",),
     "feel like a burden": ("feeling like a burden",),
     "feel completely alone": ("feeling completely alone",),
+    "cannot sleep at night": ("can't sleep at night", "cant sleep at night"),
+    "cannot keep myself safe": ("can't keep myself safe", "cant keep myself safe"),
+    "cannot cope with school": ("can't cope with school",),
+    "cannot afford food": ("can't afford food",),
 }
 
 # Suppress only direct English negation immediately before a recognised
 # predicate. Do not suppress ambiguous statements or arbitrary custom phrases.
-NEGATABLE = re.compile(r"^(?:want|wanna|feel|feeling|thinking)\b")
+NEGATABLE = re.compile(r"^(?:want|wanna|feel|feeling|thinking|plan|being|using|drinking|avoiding|hate)\b")
 DIRECT_NEGATION = re.compile(
     r"\b(?:do not|don't|dont|does not|doesn't|not|never|no longer)"
     r"(?:\s+(?:really|actually|ever))?\s*$"
 )
+CLAIM_DENIAL = re.compile(r"\b(?:si kwamba|siyo kwamba|si kweli kwamba|sisemi|"
+                          r"it is not true that|it's not true that)\s*$")
 
 
 def normalise(text):
@@ -43,6 +49,8 @@ def matches_keyword(text, term):
         pattern = r"(?<!\w)" + re.escape(phrase) + r"(?!\w)"
         for match in re.finditer(pattern, text):
             prefix = text[:match.start()]
+            if CLAIM_DENIAL.search(prefix):
+                continue
             if NEGATABLE.match(phrase) and DIRECT_NEGATION.search(prefix):
                 continue
             return True

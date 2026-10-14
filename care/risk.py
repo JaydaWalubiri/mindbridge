@@ -25,7 +25,7 @@ def assess(person, text="", classification=None):
     if drop:
         evidence.append(("behaviour", "Mood dropped by three or more points"))
     if matches:
-        evidence.append(("keyword", "Configured keyword matched"))
+        evidence.extend(("keyword", "Matched phrase: " + keyword.term) for keyword in matches)
     if (classification and classification.risk_eligible and classification.label.casefold()=="negative"
         and classification.confidence>=settings.RISK_NEGATIVE_THRESHOLD):
         evidence.append(("sentiment", "Negative sentiment above configured threshold"))
@@ -43,5 +43,17 @@ def assess(person, text="", classification=None):
         layers.discard("sentiment")
     if evidence and len(layers)>=2:
         return "medium", "Combined risk signals", ", ".join(sorted(layers))
+    return None
+
+
+def missed_checkin_signal(person, week):
+    """Shared missed-week rule for the live scheduler and fictional test setup."""
+    closed = list(person.weekly_checkins.filter(week_start__lt=week).order_by("-week_start")[:2])
+    if (len(closed) == 2 and closed[0].week_start == week-timedelta(days=7)
+            and closed[1].week_start == week-timedelta(days=14)
+            and all(item.status == "missed" for item in closed)
+            and not person.inbound_messages.filter(received_at__date__gte=closed[1].week_start,
+                                                   received_at__date__lt=week).exists()):
+        return "medium", "Two missed weekly check-ins", "weekly schedule"
     return None
 

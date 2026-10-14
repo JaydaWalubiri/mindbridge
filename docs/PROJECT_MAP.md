@@ -30,6 +30,8 @@ The backend and frontend belong to the same Django project. These folders keep D
 | Consent, nickname, age, messages | `care/services.py` | `templates/care/whatsapp_preview.html` for local tests |
 | Round-robin assignment | `care/workflows.py` → `assign_counsellor` | Admin dashboard, counsellor profiles |
 | Available times and booking | `care/workflows.py` → appointment functions; `care/forms.py` | `availability.html`, `book_session.html`, `sessions.html` |
+| Testing data | `care/management/commands/prepare_test_data.py` | Named profiles, histories and future slots |
+| Keyword phrase library | `care/keyword_library.py`, `care/keywords.py` | Django admin keyword categories |
 | Risk decisions | `care/risk.py` | `alerts.html`, `participant.html` |
 | Alert review and requests | `care/views.py` | `dashboard.html`, `alerts.html` |
 | Queue and Turn delivery | `care/services.py` | Admin dashboard and outbound records |

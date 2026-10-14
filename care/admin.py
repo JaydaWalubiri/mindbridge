@@ -15,7 +15,8 @@ class MoodEntryAdmin(admin.ModelAdmin):
 
 @admin.register(RiskAlert)
 class RiskAlertAdmin(admin.ModelAdmin):
-    list_display = ("participant", "priority", "status", "created_at", "reviewed_by")
+    readonly_fields = ("matched_terms",)
+    list_display = ("participant", "priority", "reason", "trigger_source", "status", "created_at", "reviewed_by")
     list_filter = ("priority", "status")
 
 @admin.register(Session)
@@ -25,8 +26,8 @@ class SessionAdmin(admin.ModelAdmin):
 
 @admin.register(Keyword)
 class KeywordAdmin(admin.ModelAdmin):
-    list_display = ("term", "language", "tier", "is_active")
-    list_filter = ("language", "tier", "is_active")
+    list_display = ("term", "language", "category", "tier", "is_active")
+    list_filter = ("language", "category", "tier", "is_active")
 
 @admin.register(InboundMessage)
 class InboundMessageAdmin(admin.ModelAdmin):
@@ -70,8 +71,8 @@ from .models import AssignmentRotation, AvailabilitySlot, CounsellorProfile, Ris
 
 @admin.register(CounsellorProfile)
 class CounsellorProfileAdmin(admin.ModelAdmin):
-    list_display = ("user", "accepts_assignments", "notification_opt_in")
-    list_filter = ("accepts_assignments",)
+    list_display = ("user", "is_simulated", "accepts_assignments", "notification_opt_in")
+    list_filter = ("is_simulated", "accepts_assignments",)
 
 
 @admin.register(AvailabilitySlot)

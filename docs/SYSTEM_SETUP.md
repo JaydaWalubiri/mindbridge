@@ -13,7 +13,7 @@ git switch feat/full-stack-care-workspace
 git pull --ff-only origin feat/full-stack-care-workspace
 ```
 
-If Git reports local changes, commit or stash those changes before switching; do not discard them. After the integration pull request is merged, this application branch contains the complete changes. Before merge, use `feat/safe-conversation-model` instead.
+If Git reports local changes, commit or stash those changes before switching; do not discard them. The current application changes are on this branch.
 
 If `.venv\Scripts\python.exe` is missing, run `py -3.12 -m venv .venv`. Then:
 
@@ -22,20 +22,19 @@ If `.venv\Scripts\python.exe` is missing, run `py -3.12 -m venv .venv`. Then:
 $env:DJANGO_DEBUG = '1'
 .\.venv\Scripts\python.exe manage.py migrate
 .\.venv\Scripts\python.exe manage.py createsuperuser
-.\.venv\Scripts\python.exe manage.py seed_demo
-.\.venv\Scripts\python.exe manage.py add_keywords
+.\.venv\Scripts\python.exe manage.py prepare_test_data
 .\.venv\Scripts\python.exe manage.py check_system
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
-Create a superuser only if you do not already have one. `seed_demo` creates fictional records and an eligible profile for the first superuser. It does not create passwords. Production/Turn/model/worker warnings from `check_system` are expected during a local demo.
+Create a superuser only if you do not already have one. `prepare_test_data` creates three named fictional counsellors, six participants, future appointment slots and 104 categorized keywords. Save the generated counsellor passwords printed in the terminal; your existing administrator password is unchanged. Reruns do not reset passwords or reviews. Production/Turn/model/worker warnings from `check_system` are expected during a local demo.
 
 ## 2. Review the complete local journey
 
 Sign in at `http://127.0.0.1:8000/login/`.
 
-1. Open **Availability** and add a future 30-minute slot for the counsellor who will receive demo assignments.
-2. Open the staff-only **WhatsApp flow preview** at `/preview/whatsapp/`. This saves clearly marked demo records and never queues messages to Turn, even if Turn credentials exist.
+1. Inspect the prepared participants and alerts, then open **Availability** to see the ready-made 30-minute slots.
+2. Open the staff-only **WhatsApp flow preview** at `/preview/whatsapp/`. This saves fictional test records and never queues messages to Turn, even if Turn credentials exist.
 3. Agree, choose a fictional nickname and adult age, enter a mood score, and send a fictional English note. Onboarding assigns an eligible active counsellor automatically. Inspect the participant profile and mood history.
 4. Choose **Counsellor**. The request appears on the assigned counsellor dashboard; numbered future slots appear in chat. Select a slot and verify it on **Sessions**. If there are no slots, the request waits for staff.
 5. With a new fictional demo conversation, use `I feel hopeless about school` to inspect Tier-2 behaviour. This phrase alone should not create a combined alert without another eligible layer. Use the direct safety phrase `I intend to take my own life today` to verify immediate emergency guidance and an alert, then verify **Counsellor** and slot selection still work.
