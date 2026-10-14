@@ -335,6 +335,34 @@ class ProposalWorkflowTests(TestCase):
         self.client.force_login(self.c2)
         self.assertEqual(self.client.post(reverse("remove_availability",args=[slot.pk])).status_code,404)
 
+    def test_remove_availability_deletes_slot_and_allows_readding_time(self):
+        when=self.now+timedelta(days=3)
+        slot=AvailabilitySlot.objects.create(counsellor=self.c1,starts_at=when)
+        self.client.force_login(self.c1)
+        url=reverse("remove_availability",args=[slot.pk])
+        self.assertEqual(self.client.get(url).status_code,405)
+        self.assertRedirects(self.client.post(url),reverse("availability"))
+        self.assertFalse(AvailabilitySlot.objects.filter(pk=slot.pk).exists())
+        self.assertEqual(self.client.post(url).status_code,404)
+        AvailabilitySlot.objects.create(counsellor=self.c1,starts_at=when)
+        self.assertEqual(AvailabilitySlot.objects.filter(counsellor=self.c1,starts_at=when).count(),1)
+
+    def test_remove_availability_keeps_booked_session(self):
+        person=self.person()
+        session=Session.objects.create(participant=person,counsellor=person.counsellor,starts_at=self.now+timedelta(days=3))
+        slot=AvailabilitySlot.objects.create(counsellor=person.counsellor,starts_at=session.starts_at,session=session)
+        self.client.force_login(person.counsellor)
+        self.client.post(reverse("remove_availability",args=[slot.pk]))
+        slot.refresh_from_db();session.refresh_from_db()
+        self.assertEqual(slot.session_id,session.pk)
+        self.assertTrue(slot.is_active)
+        self.assertEqual(session.status,"scheduled")
+
+    def test_inactive_unbooked_slots_are_not_listed(self):
+        AvailabilitySlot.objects.create(counsellor=self.c1,starts_at=self.now+timedelta(days=3),is_active=False)
+        self.client.force_login(self.c1)
+        self.assertContains(self.client.get(reverse("availability")),"No appointment times added yet.")
+
     def test_session_cancellation_disables_slot_and_pending_confirmation(self):
         from .workflows import book_appointment
         person=self.person();person.wa_id="254700000001";person.save()
