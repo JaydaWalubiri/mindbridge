@@ -13,7 +13,7 @@ def assign_counsellor(person):
         return person.counsellor
     with transaction.atomic():
         cursor = AssignmentRotation.objects.select_for_update().get(pk=1)
-        eligible = CounsellorProfile.objects.filter(accepts_assignments=True, user__is_active=True)
+        eligible = CounsellorProfile.objects.filter(accepts_assignments=True, user__is_active=True, user__is_staff=False)
         if not person.is_simulated:
             eligible = eligible.filter(is_simulated=False)
         elif eligible.filter(is_simulated=True).exists():
