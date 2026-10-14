@@ -51,6 +51,7 @@ class RiskAlert(models.Model):
     priority = models.CharField(max_length=12, choices=[("high", "High"), ("medium", "Medium")], default="medium")
     reason = models.CharField(max_length=180)
     trigger_source = models.CharField(max_length=60, blank=True)
+    matched_terms = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     reviewed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -79,6 +80,7 @@ class Session(models.Model):
 class Keyword(models.Model):
     term = models.CharField(max_length=120)
     language = models.CharField(max_length=30)
+    category = models.CharField(max_length=40, blank=True)
     tier = models.PositiveSmallIntegerField(default=2)
     is_active = models.BooleanField(default=True)
 
@@ -147,6 +149,8 @@ class WeeklyCheckIn(models.Model):
 class CounsellorProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="care_profile")
     accepts_assignments = models.BooleanField(default=True)
+    is_simulated = models.BooleanField(default=False,
+        help_text="Fictional testing profile; excluded from live participant assignment.")
     whatsapp_number = models.CharField(max_length=32, blank=True, help_text="Authorized counsellor WhatsApp number, digits with country code.")
     notification_opt_in = models.BooleanField(default=False)
 

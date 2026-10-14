@@ -164,15 +164,11 @@ def run_weekly_checkins(today=None):
                 cycle.save(update_fields=["status"])
                 missed += int(state == "missed")
             current += timedelta(days=7)
-        weeks = list(person.weekly_checkins.order_by("-week_start")[:3])
-        closed = [c for c in weeks if c.week_start < week]
-        if (len(closed) >= 2 and all(c.status == "missed" for c in closed[:2]) and
-            not person.inbound_messages.filter(received_at__date__gte=closed[1].week_start,
-                received_at__date__lt=week).exists()):
-            reason = "Two missed weekly check-ins"
-            if not person.alerts.filter(reason=reason, status=RiskAlert.OPEN).exists():
-                from .workflows import create_alert
-                create_alert(person, "medium", reason, "weekly schedule")
+        from .risk import missed_checkin_signal
+        signal = missed_checkin_signal(person, week)
+        if signal:
+            from .workflows import create_alert
+            create_alert(person, *signal)
         # An approved template permits an outbound prompt outside the 24-hour service window.
         if today == week and not person.moods.filter(recorded_at__date__gte=week).exists():
             queue_template(person, settings.TURN_CHECKIN_TEMPLATE_NAME, f"weekly:{person.pk}:{week}")

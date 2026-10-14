@@ -131,7 +131,7 @@ def admin_dashboard(request):
         "staff_template_ready": bool(settings.TURN_STAFF_TEMPLATE_NAME and settings.TURN_TEMPLATE_NAMESPACE),
         "support_template_ready": bool(settings.TURN_SUPPORT_TEMPLATE_NAME and settings.TURN_TEMPLATE_NAMESPACE),
         "active": "admin", "participants_count": Participant.objects.count(),
-        "staff_count": get_user_model().objects.filter(is_staff=True).count(),
+        "counsellor_count": CounsellorProfile.objects.filter(user__is_active=True).count(),
         "pending_count": SessionRequest.objects.filter(status="pending").count(),
         "open_count": RiskAlert.objects.filter(status="open").count(),
         "pending": SessionRequest.objects.filter(status="pending").select_related("participant")[:8],
@@ -290,10 +290,10 @@ def simulator_message(request):
     person = Participant.objects.filter(pk=request.session.get(key), is_simulated=True).first()
     if not person or data.get("reset"):
         # Keep previous demo records for reviewing the dashboard.
-        person = Participant.objects.create(code="DEMO-CHAT-"+uuid.uuid4().hex[:10].upper(),
-                    display_name="Demo participant", is_simulated=True)
+        person = Participant.objects.create(code="MB-CHAT-"+uuid.uuid4().hex[:10].upper(),
+                    display_name="New participant", is_simulated=True)
         request.session[key] = person.pk
-    incoming, _ = process_message(person, body, "demo:"+uuid.uuid4().hex)
+    incoming, _ = process_message(person, body, "test-chat:"+uuid.uuid4().hex)
     person.refresh_from_db()
     return JsonResponse({"reply": incoming.reply, "buttons": getattr(incoming, "suggested_buttons", ()),
         "code": person.code, "profile_url": f"/participants/{person.pk}/", "state": person.flow_state,
