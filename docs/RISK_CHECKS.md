@@ -15,7 +15,7 @@ rather than claiming model performance. See [MODEL_INTEGRATION.md](MODEL_INTEGRA
 | Sudden drop | Latest two mood scores fall by at least three points; latest entry must be within seven days; high-priority review alert |
 | Disengagement | Two closed weekly cycles without moods and without other inbound contact across those cycles; medium welfare alert |
 | Other combinations | At least two distinct layers of evidence within seven days, with a risk signal in the current assessment |
-| Sentiment evidence | `negative` at confidence at least `RISK_NEGATIVE_THRESHOLD` (default 0.85) |
+| Sentiment evidence | Only with `SENTIMENT_RISK_ENABLED=1` and an eligible `negative` result at confidence at least `RISK_NEGATIVE_THRESHOLD` (default 0.85); prior sentiment evidence is excluded while the setting is off |
 
 The named mood/disengagement exceptions are retained from the proposal
 interpretation in [PROPOSAL_REVIEW.md](PROPOSAL_REVIEW.md). Multiple keyword
