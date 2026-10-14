@@ -26,7 +26,7 @@ def assess(person, text="", classification=None):
         evidence.append(("behaviour", "Mood dropped by three or more points"))
     if matches:
         evidence.extend(("keyword", "Matched phrase: " + keyword.term) for keyword in matches)
-    if (classification and classification.risk_eligible and classification.label.casefold()=="negative"
+    if (settings.SENTIMENT_RISK_ENABLED and classification and classification.risk_eligible and classification.label.casefold()=="negative"
         and classification.confidence>=settings.RISK_NEGATIVE_THRESHOLD):
         evidence.append(("sentiment", "Negative sentiment above configured threshold"))
     for layer, reason in evidence:
@@ -39,7 +39,7 @@ def assess(person, text="", classification=None):
     if low:
         return "medium", "Consecutive low weekly moods", "mood rule"
     layers = set(person.risk_evidence.filter(recorded_at__gte=now-timedelta(days=7)).values_list("layer",flat=True))
-    if not settings.SENTIMENT_RISK_ENABLED and not (classification and classification.risk_eligible):
+    if not settings.SENTIMENT_RISK_ENABLED:
         layers.discard("sentiment")
     if evidence and len(layers)>=2:
         return "medium", "Combined risk signals", ", ".join(sorted(layers))
