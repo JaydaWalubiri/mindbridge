@@ -17,40 +17,47 @@ git pull --ff-only
 $env:DJANGO_DEBUG = "1"
 .\.venv\Scripts\python.exe manage.py migrate
 .\.venv\Scripts\python.exe manage.py check
+.\.venv\Scripts\python.exe manage.py prepare_test_data
 .\.venv\Scripts\python.exe manage.py runserver
 ```
 
 Keep PowerShell open. Log in at http://127.0.0.1:8000/login/ with your existing superuser account. Create a superuser only if one does not exist; reset a known account password with `manage.py changepassword USERNAME` if needed.
 
-## Set up a counsellor to receive the demo participant
+## Prepared testing workspace
 
-1. In Django admin, create a counsellor user account (Active enabled; Staff and Superuser disabled).
-2. Open **Counsellor profiles**, add that user, and enable **Accepts assignments**. You may also give your existing administrator account a profile if you want it to act as a demo counsellor. Ordinary administrators are not automatically assignment candidates.
-3. Leave WhatsApp notification opt-in disabled for local review; no actual phone number is needed.
-4. Open **My availability** in the web workspace. An administrator can select the counsellor in the form; an ordinary counsellor can only manage their own times.
-5. Add two future appointment times. Each is thirty minutes. All displayed times are EAT.
+Run `prepare_test_data` once after migrations, with `DJANGO_DEBUG=1`. It creates three fictional counsellors with separate logins, six named participants, the categorized keyword library and future appointment slots. Save the passwords printed in PowerShell. No fixed passwords are committed, and rerunning the command does not reset passwords or undo alert reviews. Use `manage.py changepassword USERNAME` if you lose a test password.
+
+| Counsellor | Username | Initially assigned participants |
+| --- | --- | --- |
+| Amina Otieno | `amina.otieno` | Kelvin Otieno, Peter Kamau |
+| Brian Mwangi | `brian.mwangi` | Dennis Mwangi, Daniel Mutua |
+| Grace Wanjiru | `grace.wanjiru` | Samuel Ochieng, Hassan Ali |
+
+All names and records are fictional. Counsellors are active ordinary users, not staff/superusers. Test profiles receive local simulator assignments and are excluded from automatic live-participant assignment. No phone numbers or WhatsApp notification opt-ins are added. Use your existing superuser to view the administrator screens.
+
+There are six appointment slots per counsellor: tomorrow and the next two days at 10:00 and 14:00 EAT. Samuel has one scheduled appointment; Daniel has a pending request. Details and expected alerts are in [TEST_DATA.md](TEST_DATA.md). You can add further times through **My availability**; an administrator can choose a counsellor, while ordinary counsellors only manage their own times.
 
 ## Review the participant journey
 
 Open http://127.0.0.1:8000/preview/whatsapp/ while signed in as staff. This simulator requires development mode.
 
-1. Click **Start another demo participant**.
+1. Click **Start a new conversation**.
 2. Choose **I agree**.
-3. Enter a nickname, such as `Demo Brian`.
+3. Enter a nickname, such as `Kevin Kamau`.
 4. Enter age `19`. In another demo use `16` to inspect the additional agreement step.
 5. Submit mood `3`, then write a fictional note.
 6. Choose **Counsellor**. The chat offers available times for the assigned counsellor.
 7. Reply `1` to select the first appointment. The chat should confirm the date/time.
-8. Click **Open demo participant profile** to inspect assignment, mood and messages.
+8. Click **Open participant profile** to inspect assignment, mood and messages.
 9. Open Sessions and confirm the booking.
 
-The simulator saves `DEMO-CHAT-*` records in the local database, but never creates outbound provider messages. Refresh dashboard pages to see updates. You do not need to connect a model or Turn account for this review.
+The simulator saves `MB-CHAT-*` records in the local database, but never creates outbound provider messages. Refresh dashboard pages to see updates. You do not need to connect a model or Turn account for this review.
 
 If there are no available times, the chat records a pending request instead. The assigned counsellor's overview lists that request. The administrator sees it too. Add a slot or use the **Schedule session** button to arrange it manually.
 
 ## Review counsellor and administrator controls
 
-- **Alerts**: Reason and Trigger source are separate columns. Save an outcome and optional review note; verify it under Reviewed.
+- **Alerts**: Reason and Trigger source are separate columns; keyword alerts also show the matched phrases. Save an outcome and optional review note; verify it under Reviewed.
 - **Participant profile**: the **Book counselling session +** button is at the top; inspect four-week moods and recent messages.
 - **Sessions**: mark a fictional appointment completed or cancelled. Cancellations stop any pending booking confirmation.
 - **My availability**: add or remove future times. Overlaps are rejected. Booked times cannot be removed directly.
@@ -59,7 +66,7 @@ If there are no available times, the chat records a pending request instead. The
 
 Use a private browser window to sign in as the counsellor. They should see only assigned participants and their associated requests, alerts and sessions, and cannot access staff administration or the simulator.
 
-For optional sample records, stop Django and run `manage.py seed_demo`, then restart. The seed command creates fictional dashboard records and a profile for the first superuser; it does not create a password.
+Existing `DEMO-001`–`DEMO-003` sample participants are renamed in place to `MB-1001`–`MB-1003`, preserving their identity and related records. Existing simulator codes become `MB-CHAT-*`; user-entered nicknames are preserved. The older `seed_demo` command remains an alias. Real accounts and real participant records are not modified.
 
 ## What still needs the live connection
 
