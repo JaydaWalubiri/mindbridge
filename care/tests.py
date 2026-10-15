@@ -267,6 +267,7 @@ class ProposalWorkflowTests(TestCase):
         self.assertEqual(self.client.get(reverse("whatsapp_preview")).status_code,404)
         self.assertEqual(self.client.post(reverse("simulator_message"),json.dumps({"body":"Hello"}),content_type="application/json").status_code,404)
 
+    @override_settings(SENTIMENT_RISK_ENABLED=True)
     def test_keyword_override_and_two_layer_agreement(self):
         from .model_ports import Classification
         person=self.person()

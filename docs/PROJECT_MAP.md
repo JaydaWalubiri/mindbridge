@@ -1,5 +1,7 @@
 # Project map
 
+NLP audit and evaluation: [NLP_EVALUATION.md](NLP_EVALUATION.md). The prepared separate sentiment notebook is under `notebooks/`; reproducible offline audit checks are under `tools/`. Raw datasets and model weights stay private.
+
 One Django application contains the care workflows. Keep the familiar Django filenames and avoid another frontend project, duplicated versions, or deeply nested service layers.
 
 ## Backend, frontend and documentation

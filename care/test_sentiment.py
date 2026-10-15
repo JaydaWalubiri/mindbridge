@@ -126,6 +126,7 @@ class SentimentStorageTests(TestCase):
         self.assertFalse(self.person.alerts.exists())
         self.assertFalse(self.person.risk_evidence.filter(layer="sentiment").exists())
 
+    @override_settings(SENTIMENT_RISK_ENABLED=True)
     def test_eligible_score_combines_with_keyword(self):
         with patch("care.services.classify_note", return_value=Classification("negative", 0.9, "test/model@rev", True)):
             process_message(self.person, "I feel hopeless", "eligible")
