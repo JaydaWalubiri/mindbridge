@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-13",
+  "selected_adapter": {
+    "base_model": "Jacaranda/UlizaLlama3",
+    "base_revision": "267ba2668e4119bf48e1cca544475293128775a9",
+    "adapter_repo": "Jayda13/mindbridge-uliza-clean-connection-20261007t073357z",
+    "adapter_revision": "785f05e6bec41f716e1226edd8e777b288b43cc6",
+    "status": "supervised_prototype_only",
+    "clinical_approval": false,
+    "public_release_approved": false
+  },
+  "experimental_adapter": {
+    "repo": "Jayda13/mindbridge-uliza-sheng-repair-20261013t102509z",
+    "revision": "f169920268aea76cdd003ef54398d4615a800da2",
+    "private": true,
+    "status": "rejected_for_selection_factuality_and_latency"
+  },
+  "training": {
+    "optimizer_steps": 150,
+    "passes": 2,
+    "rows_per_pass": 297,
+    "unique_replay_rows": 189,
+    "unique_new_contrasts": 36,
+    "new_contrast_repetitions": 3,
+    "learning_rates": [
+      5e-05,
+      3e-05
+    ]
+  },
+  "raw_adapter_review": {
+    "reviewer": "Codex factuality review; not native-speaker or clinical certification",
+    "development_meaning_cases": {
+      "acceptable": 6,
+      "total": 8
+    },
+    "fresh_meaning_cases": {
+      "acceptable": 5,
+      "total": 9
+    },
+    "six_second_generations_completed": {
+      "completed": 1,
+      "total": 3
+    },
+    "examples_of_failure": [
+      "Fresh possible-lateness reply invented an early arrival today.",
+      "Fresh debate reply gave unrelated advice.",
+      "Forgotten-ID reply did not address the missing item."
+    ],
+    "instruction_trials": "Rejected; compact prompt assigned unsupported blame for a traffic delay.",
+    "supplied_chat_template": false
+  },
+  "application_fix": {
+    "kind": "narrow scripted contextual support",
+    "source": "scripted_context",
+    "fictional_regressions_passed": 17,
+    "raw_model_accuracy_claim": false,
+    "risk_safeguards_take_precedence": true
+  },
+  "validation": {
+    "local_application_tests": 107,
+    "django_check": "passed",
+    "migrations": "no changes",
+    "real_gpu_service": {
+      "selected_artifact_reloaded": true,
+      "unauthenticated_health": "401",
+      "authenticated_health_and_safeguard_routes": "passed",
+      "requests": [
+        {
+          "language": "English",
+          "route": "model",
+          "latency_seconds": 4.989
+        },
+        {
+          "language": "Kiswahili",
+          "route": "fallback",
+          "latency_seconds": 6.071,
+          "reason": "incomplete generation rejected"
+        },
+        {
+          "language": "Sheng",
+          "route": "arrived_late",
+          "source": "scripted_context",
+          "latency_seconds": 0.003
+        }
+      ],
+      "hosted_endpoint_deployed": false
+    }
+  },
+  "clinical_approval": false
+}

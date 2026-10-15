@@ -1,0 +1,9 @@
+# GPU service only: keep these off the Windows Django application environment.
+torch>=2.6,<3
+transformers==4.57.6
+peft==0.21.2
+accelerate>=1.0,<2
+bitsandbytes>=0.46,<1
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+safetensors>=0.4,<1

@@ -1,0 +1,9 @@
+{
+  "base_model": "Jacaranda/UlizaLlama3",
+  "base_revision": "267ba2668e4119bf48e1cca544475293128775a9",
+  "adapter_repo": "Jayda13/mindbridge-uliza-clean-connection-20261007t073357z",
+  "adapter_revision": "785f05e6bec41f716e1226edd8e777b288b43cc6",
+  "status": "supervised_prototype_only",
+  "clinical_approval": false,
+  "public_release_approved": false
+}
