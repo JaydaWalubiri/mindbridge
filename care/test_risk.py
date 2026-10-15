@@ -125,6 +125,7 @@ class RiskRuleTests(TestCase):
         self.assertIsNone(assess(self.person, "I feel hopeless and feel worthless"))
         self.assertEqual(set(self.person.risk_evidence.values_list("layer", flat=True)), {"keyword"})
 
+    @override_settings(SENTIMENT_RISK_ENABLED=True)
     def test_sentiment_threshold_and_agreement(self):
         Keyword.objects.create(term="feel hopeless", language="English", tier=2)
         self.assertIsNone(assess(self.person, "I feel hopeless", Classification("negative", 0.849)))
@@ -134,6 +135,13 @@ class RiskRuleTests(TestCase):
     def test_sentiment_alone_and_positive_are_not_combined_alerts(self):
         self.assertIsNone(assess(self.person, "text", Classification("negative", 0.95)))
         self.assertIsNone(assess(self.person, "text", Classification("positive", 0.99)))
+
+    @override_settings(SENTIMENT_RISK_ENABLED=False)
+    def test_disabled_sentiment_cannot_bypass_gate_with_eligible_result(self):
+        Keyword.objects.create(term="feel hopeless", language="English", tier=2)
+        RiskEvidence.objects.create(participant=self.person, layer="sentiment", reason="earlier experimental prediction")
+        self.assertIsNone(assess(self.person, "I feel hopeless", Classification("negative", 0.99, risk_eligible=True)))
+        self.assertEqual(self.person.risk_evidence.filter(layer="sentiment").count(), 1)
 
     def test_expired_evidence_does_not_combine(self):
         RiskEvidence.objects.create(participant=self.person, layer="keyword", reason="old",
