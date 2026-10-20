@@ -320,7 +320,21 @@ def simulator_message(request):
         request.session[key] = person.pk
     incoming, _ = process_message(person, body, "test-chat:"+uuid.uuid4().hex)
     person.refresh_from_db()
-    return JsonResponse({"reply": incoming.reply, "buttons": getattr(incoming, "suggested_buttons", ()),
-        "code": person.code, "profile_url": f"/participants/{person.pk}/", "state": person.flow_state,
-        "assigned_to": person.counsellor.get_full_name() or person.counsellor.username if person.counsellor_id else "Awaiting assignment"})
-
+    return JsonResponse({
+        "reply": incoming.reply,
+        "buttons": getattr(incoming, "suggested_buttons", ()),
+        "code": person.code,
+        "profile_url": f"/participants/{person.pk}/",
+        "state": person.flow_state,
+        "assigned_to": (
+            person.counsellor.get_full_name() or person.counsellor.username
+            if person.counsellor_id else "Awaiting assignment"
+        ),
+        "sentiment": {
+            "enabled": settings.SENTIMENT_ENABLED,
+            "label": incoming.sentiment_label or None,
+            "confidence": incoming.sentiment_score,
+            "source": incoming.sentiment_source or None,
+            "risk_enabled": settings.SENTIMENT_RISK_ENABLED,
+        },
+    })

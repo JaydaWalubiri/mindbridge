@@ -3,3 +3,61 @@
 .admin-links{padding:2px 22px 16px}.admin-links a{display:flex;justify-content:space-between;gap:12px;padding:15px 0;border-top:1px solid var(--line);font-weight:700;font-size:12px}.admin-links span{color:#298171}.preview-page{background:#edf3ef;min-height:100vh}.preview-header{display:flex;justify-content:space-between;align-items:center;padding:20px 5vw;color:#287364;font-weight:700}.preview-header span{font-size:11px;color:#7c9387}.preview-layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:50px;align-items:center;max-width:1000px;margin:25px auto;padding:0 24px}.preview-layout h1{font-size:36px;max-width:450px}.preview-layout p{line-height:1.75;color:#647d70;max-width:470px}.preview-notes{background:white;border-radius:15px;padding:22px;margin-top:30px;max-width:440px}.preview-notes ol{line-height:2;color:#637d70;padding-left:20px;margin-bottom:0}.phone{height:650px;border:9px solid #202f2a;border-radius:38px;background:#e8eee8;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 55px #284d3630}.phone-top{height:72px;background:#176e60;color:white;display:flex;align-items:center;gap:12px;padding:14px 18px}.phone-avatar{width:37px;height:37px;border-radius:50%;background:#cde7d6;color:#187264;display:grid;place-items:center;font-size:25px}.phone-top strong,.phone-top small{display:block}.phone-top small{opacity:.72;font-size:11px;margin-top:3px}.phone-menu{margin-left:auto;font-size:22px}.chat{flex:1;overflow:auto;padding:18px 14px;display:flex;flex-direction:column;gap:12px;background-color:#e8eee8;background-image:radial-gradient(#c7d9cb 1px,transparent 1px);background-size:20px 20px}.bubble{max-width:85%;padding:11px 13px;border-radius:12px;line-height:1.45;font-size:13px;box-shadow:0 2px 4px #344a3420}.bubble.received{align-self:flex-start;background:white;border-top-left-radius:2px}.bubble.sent{align-self:flex-end;background:#d1f1d7;border-top-right-radius:2px}.chat-compose{display:flex;gap:8px;background:#f6f8f6;padding:11px}.chat-compose input{flex:1;min-width:0;border:0;background:#fff;border-radius:25px;padding:12px 17px;outline:none}.chat-compose button{background:#167765;color:#fff;border:0;width:42px;border-radius:50%;font-size:18px}@media(max-width:760px){.preview-layout{grid-template-columns:1fr}.phone{max-width:380px;width:100%;margin:auto}.preview-header span{display:none}}
 .preview-choices{display:flex;gap:7px;flex-wrap:wrap;padding:10px 12px;background:#f6f8f6;border-top:1px solid #dce7df}.preview-choices button{border:1px solid #a9d4c1;border-radius:18px;background:#fff;color:#176c60;padding:7px 12px;font-size:12px;font-weight:700}.preview-choices button:hover,.preview-choices button:focus-visible{background:#dff2e6}
 .panel{margin-bottom:24px}.entry form label{display:block;margin-bottom:8px}.entry input,.entry select,.entry textarea,.table-panel select,.table-panel textarea{max-width:100%;padding:8px;border:1px solid #cbd7d1;border-radius:6px;font:inherit}.table-panel td form{min-width:180px;display:grid;gap:8px}.table-panel td form label{font-size:12px;display:grid;gap:4px}.bubble{white-space:pre-wrap}.preview-notes .button{margin:4px 0}
+/* Model analysis panel in the WhatsApp test preview */
+.nlp-panel {
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 22px;
+    margin-top: 18px;
+    max-width: 440px;
+    width: 100%;
+}
+
+.nlp-panel h2 {
+    font-size: 21px;
+    margin: 0 0 12px;
+}
+
+.nlp-panel p {
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 9px 0;
+    color: #647d70;
+}
+
+.nlp-result {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 0;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+}
+
+.nlp-result span {
+    color: var(--muted);
+}
+
+.nlp-result strong {
+    max-width: 65%;
+    text-align: right;
+    overflow-wrap: anywhere;
+    color: var(--green);
+}
+
+.nlp-panel .nlp-note {
+    font-size: 11px;
+    color: var(--muted);
+}
+
+@media (max-width: 760px) {
+    .preview-layout {
+        align-items: start;
+    }
+
+    .nlp-panel {
+        max-width: 100%;
+    }
+}

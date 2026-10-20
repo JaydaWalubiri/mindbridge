@@ -1,12 +1,273 @@
+
 {% load static %}
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Participant test chat · MindBridge</title><link rel="stylesheet" href="{% static 'care/app.css' %}"></head>
-<body class="preview-page"><header class="preview-header"><a href="{% url 'dashboard' %}">← MindBridge workspace</a><span>Local test · no WhatsApp messages sent</span></header>
-<main class="preview-layout"><div><div class="eyebrow">PARTICIPANT EXPERIENCE</div><h1>WhatsApp test conversation</h1><p>Participants use normal WhatsApp. This staff-only local simulator runs the same message handler and saves fictional test records to your local dashboard.</p><div class="preview-notes"><strong>Review the full journey</strong><p>Agree, choose a nickname, enter age, submit a mood, write a note, then request a counsellor and choose an appointment time. Run prepare_test_data once to create counsellors and available appointment times.</p><p id="test-status" role="status"></p><a id="profile-link" hidden class="button" target="_blank" rel="noopener">Open participant profile</a><p>Responses use the configured support flow. Open the participant profile to review reply sources.</p><button class="button" id="reset" type="button">Start a new conversation</button></div></div>
-<div class="phone"><div class="phone-top"><span class="phone-avatar">✳</span><div><strong>MindBridge</strong><small>participant simulator</small></div></div><div id="messages" class="chat" aria-live="polite"></div><div id="choices" class="preview-choices" aria-label="Suggested replies"></div><form id="chat-form" class="chat-compose">{% csrf_token %}<label class="sr-only" for="chat-input">Message</label><input id="chat-input" autocomplete="off" placeholder="Write a message" maxlength="1000" required><button type="submit" aria-label="Send message">➤</button></form></div></main>
-<script>
-const chat=document.getElementById('messages'),choices=document.getElementById('choices'),input=document.getElementById('chat-input'),status=document.getElementById('test-status'),profile=document.getElementById('profile-link');let busy=false;
-function add(message,side){const node=document.createElement('div');node.className='bubble '+side;node.textContent=message;chat.appendChild(node);chat.scrollTop=chat.scrollHeight}
-function options(items){choices.replaceChildren();for(const [key,title] of items){const button=document.createElement('button');button.type='button';button.textContent=title;button.addEventListener('click',()=>send(key,false,title));choices.appendChild(button)}}
-async function send(body,reset=false,label=body){if(busy)return;busy=true;input.disabled=true;choices.querySelectorAll('button').forEach(b=>b.disabled=true);if(!reset)add(label,'sent');try{const response=await fetch('{% url "simulator_message" %}',{method:'POST',headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('[name=csrfmiddlewaretoken]').value},body:JSON.stringify({body,reset})});if(!response.ok)throw new Error('Unable to send. Check that Django is running and you are signed in as staff.');const data=await response.json();if(reset)chat.replaceChildren();add(data.reply,'received');options(data.buttons);status.textContent=data.code+' · '+data.assigned_to;profile.href=data.profile_url;profile.hidden=false;input.value=''}catch(error){add(error.message,'received');choices.querySelectorAll('button').forEach(b=>b.disabled=false)}finally{busy=false;input.disabled=false;input.focus()}}
-document.getElementById('chat-form').addEventListener('submit',event=>{event.preventDefault();const body=input.value.trim();if(body)send(body)});document.getElementById('reset').addEventListener('click',()=>send('Hello',true));add('Welcome to MindBridge. We can save your check-ins so a counsellor can review them. Is that okay?','received');options([['consent_yes','I agree'],['consent_no','Not now']]);
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Participant test chat · MindBridge</title>
+    <link rel="stylesheet" href="{% static 'care/app.css' %}">
+</head>
+<body class="preview-page">
+    <header class="preview-header">
+        <a href="{% url 'dashboard' %}">← MindBridge workspace</a>
+        <span>Local test · no WhatsApp messages sent</span>
+    </header>
+
+    <main class="preview-layout">
+        <div class="preview-info">
+            <div class="eyebrow">PARTICIPANT EXPERIENCE</div>
+            <h1>WhatsApp test conversation</h1>
+
+            <p>
+                Participants use normal WhatsApp. This staff-only local
+                simulator runs the same message handler and saves fictional
+                test records to your local dashboard.
+            </p>
+
+            <div class="preview-notes">
+                <strong>Review the full journey</strong>
+
+                <p>
+                    Agree, choose a nickname, enter age, submit a mood,
+                    write a note, then request a counsellor and choose an
+                    appointment time. Run prepare_test_data once to create
+                    counsellors and available appointment times.
+                </p>
+
+                <p id="test-status" role="status"></p>
+
+                <a id="profile-link" hidden class="button"
+                   target="_blank" rel="noopener">
+                    Open participant profile
+                </a>
+
+                <p>
+                    Responses use the configured support flow. Open the
+                    participant profile to review reply sources.
+                </p>
+
+                <button class="button" id="reset" type="button">
+                    Start a new conversation
+                </button>
+            </div>
+
+            <section class="nlp-panel" aria-live="polite">
+                <div class="eyebrow">MODEL TESTING</div>
+                <h2>Model Analysis</h2>
+
+                <p id="nlp-status">Waiting for a test message.</p>
+
+                <div class="nlp-result">
+                    <span>Sentiment</span>
+                    <strong id="nlp-label">Not available</strong>
+                </div>
+
+                <div class="nlp-result">
+                    <span>Confidence</span>
+                    <strong id="nlp-confidence">—</strong>
+                </div>
+
+                <div class="nlp-result">
+                    <span>Model source</span>
+                    <strong id="nlp-source">—</strong>
+                </div>
+
+                <p id="nlp-risk-status" class="nlp-note">
+                    Sentiment is excluded from risk decisions.
+                </p>
+
+                <p class="nlp-note">
+                    Sentiment is experimental. It is not a diagnosis or
+                    a validated mental-health risk score.
+                </p>
+            </section>
+        </div>
+
+        <div class="phone">
+            <div class="phone-top">
+                <span class="phone-avatar">✳</span>
+                <div>
+                    <strong>MindBridge</strong>
+                    <small>participant simulator</small>
+                </div>
+            </div>
+
+            <div id="messages" class="chat" aria-live="polite"></div>
+
+            <div id="choices" class="preview-choices"
+                 aria-label="Suggested replies"></div>
+
+            <form id="chat-form" class="chat-compose">
+                {% csrf_token %}
+                <label class="sr-only" for="chat-input">Message</label>
+                <input id="chat-input" autocomplete="off"
+                       placeholder="Write a message" maxlength="1000" required>
+                <button type="submit" aria-label="Send message">➤</button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        const chat = document.getElementById('messages');
+        const choices = document.getElementById('choices');
+        const input = document.getElementById('chat-input');
+        const status = document.getElementById('test-status');
+        const profile = document.getElementById('profile-link');
+
+        const nlpStatus = document.getElementById('nlp-status');
+        const nlpLabel = document.getElementById('nlp-label');
+        const nlpConfidence = document.getElementById('nlp-confidence');
+        const nlpSource = document.getElementById('nlp-source');
+        const nlpRiskStatus = document.getElementById('nlp-risk-status');
+
+        let busy = false;
+
+        function add(message, side) {
+            const node = document.createElement('div');
+            node.className = 'bubble ' + side;
+            node.textContent = message;
+            chat.appendChild(node);
+            chat.scrollTop = chat.scrollHeight;
+        }
+
+        function options(items) {
+            choices.replaceChildren();
+
+            for (const [key, title] of (items || [])) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = title;
+                button.addEventListener('click', () => send(key, false, title));
+                choices.appendChild(button);
+            }
+        }
+
+        function updateNlp(result) {
+            const data = result || {};
+
+            nlpLabel.textContent = 'Not available';
+            nlpConfidence.textContent = '—';
+            nlpSource.textContent = data.source || '—';
+
+            if (!data.enabled) {
+                nlpStatus.textContent = 'Sentiment model is disabled.';
+            } else if (
+                data.label === null ||
+                data.label === undefined ||
+                data.confidence === null ||
+                data.confidence === undefined
+            ) {
+                nlpStatus.textContent =
+                    'No sentiment result for this message. The model may only run on free-text messages.';
+            } else {
+                nlpStatus.textContent =
+                    'Sentiment result for the latest processed message.';
+                nlpLabel.textContent = String(data.label);
+
+                const confidence = Number(data.confidence);
+
+                nlpConfidence.textContent = Number.isFinite(confidence)
+                    ? (confidence * 100).toFixed(1) + '%'
+                    : '—';
+            }
+
+            nlpRiskStatus.textContent = data.risk_enabled
+                ? 'Sentiment risk eligibility is enabled in configuration. This result alone does not establish risk.'
+                : 'Sentiment is excluded from risk decisions.';
+        }
+
+        async function send(body, reset = false, label = body) {
+            if (busy) return;
+
+            busy = true;
+            input.disabled = true;
+
+            choices.querySelectorAll('button').forEach(button => {
+                button.disabled = true;
+            });
+
+            if (!reset) {
+                add(label, 'sent');
+            }
+
+            try {
+                const response = await fetch(
+                    '{% url "simulator_message" %}',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': document.querySelector(
+                                '[name=csrfmiddlewaretoken]'
+                            ).value
+                        },
+                        body: JSON.stringify({ body, reset })
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error(
+                        'Unable to send. Check that Django is running and you are signed in as staff.'
+                    );
+                }
+
+                const data = await response.json();
+
+                if (reset) {
+                    chat.replaceChildren();
+                }
+
+                add(data.reply, 'received');
+                options(data.buttons);
+
+                status.textContent =
+                    data.code + ' · ' + data.assigned_to;
+
+                profile.href = data.profile_url;
+                profile.hidden = false;
+                input.value = '';
+
+                updateNlp(data.sentiment);
+            } catch (error) {
+                add(error.message, 'received');
+
+                choices.querySelectorAll('button').forEach(button => {
+                    button.disabled = false;
+                });
+            } finally {
+                busy = false;
+                input.disabled = false;
+                input.focus();
+            }
+        }
+
+        document.getElementById('chat-form').addEventListener(
+            'submit',
+            event => {
+                event.preventDefault();
+                const body = input.value.trim();
+
+                if (body) {
+                    send(body);
+                }
+            }
+        );
+
+        document.getElementById('reset').addEventListener(
+            'click',
+            () => send('Hello', true)
+        );
+
+        add(
+            'Welcome to MindBridge. We can save your check-ins so a counsellor can review them. Is that okay?',
+            'received'
+        );
+
+        options([
+            ['consent_yes', 'I agree'],
+            ['consent_no', 'Not now']
+        ]);
+    </script>
+</body>
+</html>
