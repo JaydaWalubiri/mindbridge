@@ -4,10 +4,11 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import connection, close_old_connections
 from django.utils import timezone
 from care.models import WorkerStatus
-from care.services import deliver_due, run_weekly_checkins
+from care.services import deliver_due, run_session_reminders, run_weekly_checkins
 from care.workflows import run_escalations, enforce_retention
 
-TASKS = (("delivery", 60, deliver_due), ("checkins", 86400, run_weekly_checkins),
+TASKS = (("delivery", 60, deliver_due), ("reminders", 300, run_session_reminders),
+         ("checkins", 86400, run_weekly_checkins),
          ("escalations", 900, run_escalations), ("retention", 86400, enforce_retention))
 
 

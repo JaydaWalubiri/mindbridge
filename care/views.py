@@ -16,7 +16,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 from .forms import SessionForm, AvailabilityForm
-from .models import AvailabilitySlot, CounsellorProfile, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WorkerStatus
+from .models import AvailabilitySlot, CounsellorProfile, InboundMessage, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WorkerStatus
 from .services import process_message, queue_session_confirmation, valid_turn_signature
 
 
@@ -40,10 +40,16 @@ def dashboard(request):
     people = assigned(request.user)
     open_alerts = RiskAlert.objects.filter(participant__in=people, status=RiskAlert.OPEN)
     pending = SessionRequest.objects.filter(participant__in=people, status="pending").select_related("participant")
+    recent_sentiment = InboundMessage.objects.filter(
+        participant__in=people
+    ).exclude(sentiment_label="").select_related("participant").order_by(
+        "-received_at"
+    )[:6]
     context = {
         "pending_requests": pending[:8], "request_count": pending.count(), "active": "dashboard", "total_people": people.count(), "open_count": open_alerts.count(),
         "upcoming_count": Session.objects.filter(participant__in=people, status="scheduled", starts_at__gte=timezone.now()).count(),
         "recent_alerts": open_alerts.select_related("participant")[:6],
+        "recent_sentiment": recent_sentiment,
         "upcoming_sessions": Session.objects.filter(participant__in=people, status="scheduled",
                                                     starts_at__gte=timezone.now()).select_related("participant")[:4],
     }

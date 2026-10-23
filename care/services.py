@@ -9,7 +9,7 @@ from datetime import timedelta
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
-from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, SessionRequest, WeeklyCheckIn
+from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WeeklyCheckIn
 from .model_ports import classify_note, generate_response
 from .response_policy import route, scripted_reply, select_language
 
@@ -93,6 +93,58 @@ def queue_session_confirmation(session):
         return None
     return OutboundMessage.objects.get_or_create(dedupe_key=key, defaults={
         "participant": person, "payload": payload})[0]
+
+
+def queue_session_reminder(session, reminder_type="24h"):
+    person = session.participant
+    if person.is_simulated or not person.consented or not person.wa_id or session.status != "scheduled":
+        return None
+    when = timezone.localtime(session.starts_at).strftime("%d %b %Y at %H:%M")
+    key = f"session_reminder_{reminder_type}:{session.pk}"
+    if OutboundMessage.objects.filter(dedupe_key=key).exists():
+        return None
+
+    if reminder_type == "24h":
+        msg = f"Reminder: Your MindBridge session is scheduled for tomorrow at {when}. Reply here if you need to reschedule."
+    else:
+        msg = f"Reminder: Your MindBridge session is starting soon ({when}). Reply here if you are ready or need to talk."
+
+    if person.last_inbound_at and person.last_inbound_at >= timezone.now() - timedelta(hours=23):
+        payload = text_payload(person.wa_id, msg)
+    elif settings.TURN_SESSION_TEMPLATE_NAME and settings.TURN_TEMPLATE_NAMESPACE:
+        payload = template_payload(person.wa_id, settings.TURN_SESSION_TEMPLATE_NAME,
+                                   settings.TURN_TEMPLATE_LANGUAGE)
+        payload["template"]["components"] = [{"type": "body", "parameters": [
+            {"type": "text", "text": msg}]}]
+    else:
+        return None
+    return OutboundMessage.objects.get_or_create(dedupe_key=key, defaults={
+        "participant": person, "payload": payload})[0]
+
+
+def run_session_reminders(now=None):
+    """Scan upcoming scheduled sessions and queue 24-hour and 2-hour reminders."""
+    now = now or timezone.now()
+    queued = 0
+    upcoming_24h = Session.objects.filter(
+        status="scheduled",
+        starts_at__gte=now + timedelta(hours=20),
+        starts_at__lte=now + timedelta(hours=26)
+    ).select_related("participant")
+    for s in upcoming_24h:
+        if queue_session_reminder(s, "24h"):
+            queued += 1
+
+    upcoming_2h = Session.objects.filter(
+        status="scheduled",
+        starts_at__gte=now + timedelta(minutes=30),
+        starts_at__lte=now + timedelta(hours=2, minutes=30)
+    ).select_related("participant")
+    for s in upcoming_2h:
+        if queue_session_reminder(s, "2h"):
+            queued += 1
+
+    return queued
 
 
 def deliver_due(limit=50):

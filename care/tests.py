@@ -407,3 +407,48 @@ class ProposalWorkflowTests(TestCase):
         self.say(person,"Counsellor")
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("admin_dashboard")),"Awaiting counsellor assignment")
+
+    def test_session_reminders_queue_and_idempotent(self):
+        from .services import run_session_reminders, queue_session_reminder
+        person = self.person()
+        person.wa_id = "254700000005"
+        person.save()
+
+        # Session in 24 hours (22h from now)
+        s_24h = Session.objects.create(
+            participant=person,
+            counsellor=person.counsellor,
+            starts_at=self.now + timedelta(hours=22),
+            status="scheduled"
+        )
+        # Session in 2 hours (1h from now)
+        s_2h = Session.objects.create(
+            participant=person,
+            counsellor=person.counsellor,
+            starts_at=self.now + timedelta(hours=1),
+            status="scheduled"
+        )
+        # Cancelled session should not get a reminder
+        s_canc = Session.objects.create(
+            participant=person,
+            counsellor=person.counsellor,
+            starts_at=self.now + timedelta(hours=22),
+            status="cancelled"
+        )
+
+        queued = run_session_reminders(now=self.now)
+        self.assertEqual(queued, 2)
+        self.assertTrue(OutboundMessage.objects.filter(dedupe_key=f"session_reminder_24h:{s_24h.pk}").exists())
+        self.assertTrue(OutboundMessage.objects.filter(dedupe_key=f"session_reminder_2h:{s_2h.pk}").exists())
+        self.assertFalse(OutboundMessage.objects.filter(dedupe_key=f"session_reminder_24h:{s_canc.pk}").exists())
+
+        # Second run should be idempotent
+        self.assertEqual(run_session_reminders(now=self.now), 0)
+
+    def test_run_reminders_command(self):
+        from django.core.management import call_command
+        from io import StringIO
+        out = StringIO()
+        call_command("run_reminders", stdout=out)
+        self.assertIn("session reminder", out.getvalue().lower())
+
