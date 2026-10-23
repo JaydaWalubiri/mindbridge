@@ -22,7 +22,9 @@ _DANGER = re.compile(
     r"(?:kukatisha|kumaliza)\s+maisha\s+(?:yangu|yake)|"
     r"(?:jump|ruka|kuruka|niruke)\b.{0,35}\b(?:balcony|roof|bridge|roshani)|"
     r"overdos\w*|(?:swallowed|taken)\s+(?:too\s+many|many|all)\s+(?:pills|tablets)|"
-    r"nimemeza\s+(?:vidonge|tablets)\s+(?:vingi|mingi))\b", re.I)
+    r"nimemeza\s+(?:vidonge|tablets)\s+(?:vingi|mingi)|"
+    r"nataka\s+kujitoa|kufunga\s+hii\s+chapter|bora\s+kukuwa\s+dead|kujirusha|kudedi|"
+    r"kujihepa|bora\s+nikafie\s+mbali|heri\s+ningededi|nataka\s+kudedi)\b", re.I)
 _MEDICATION = re.compile(
     r"\b(?:medicin\w*|medication\w*|meds?|pills?|tablets?|doses?|dosage|"
     r"pharmac\w*|prescription\w*|supplement\w*|melatonin\w*|"
