@@ -259,7 +259,9 @@ class ProposalWorkflowTests(TestCase):
         self.assertEqual(OutboundMessage.objects.count(),0)
         self.assertEqual(self.client.get(reverse("whatsapp_preview")).status_code,200)
         self.client.force_login(self.c1)
-        self.assertEqual(self.client.post(reverse("simulator_message"),json.dumps({"body":"Hello"}),content_type="application/json").status_code,404)
+        self.assertEqual(self.client.post(reverse("simulator_message"),json.dumps({"body":"Hello"}),content_type="application/json").status_code,200)
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse("whatsapp_preview")).status_code,200)
 
     @override_settings(DEBUG=False)
     def test_simulator_disabled_outside_development(self):
