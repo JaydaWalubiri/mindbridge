@@ -1,0 +1,5 @@
+# GPU conversation model server (FastAPI)
+# Install with: pip install -r requirements-server.txt
+fastapi>=0.111
+uvicorn[standard]>=0.29
+pydantic>=2.7
