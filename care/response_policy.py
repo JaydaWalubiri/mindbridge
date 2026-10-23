@@ -87,10 +87,9 @@ def language_name(value):
 def select_language(text, preferred="en"):
     """A best-effort hint; an explicit API language always takes precedence."""
     value = normalise(text)
-    sw = re.findall(r"\b(?:nina\w*|nime\w*|nataka|niko|sijui|sina|siwezi|ni|kwa|yangu|na|mtu|"
-                    r"wangu|leo|dawa|vidonge|kujiua|kujiumiza|kujinyonga|rafiki)\b", value)
-    mixed = re.search(r"\b(?:beshte|nafeel|nascroll|homework|class|tablet|solo|bro|late|poa|happy)\b", value)
-    if sw and mixed:
+    sw = re.findall(r"\b(?:nina\w*|nime\w*|ime\w*|na\w+|sija\w*|hazi\w*|zinak\w*|nataka|niko|sijui|sina|siwezi|ni|kwa|yangu|yako|wangu|leo|dawa|vidonge|kujiua|kujiumiza|kujinyonga|rafiki|siku|hizi)\b", value)
+    mixed = re.search(r"\b(?:beshte|nafeel|nikifeel|kufeel|feel|stressed|stress|homework|class|school|exam|exams|siblings|solo|bro|late|poa|happy|nascroll|story|chuo|msee|manze|maze|wasee|ju|vibe|madhe|fathe|mtaa|ngumu|pressure|study|timetable|marks)\b", value)
+    if (sw and mixed) or re.search(r"\b(?:manze|maze|wasee|nikifeel|nafeel|beshte|chuo|niko poa)\b", value):
         return "Sheng"
     if len(sw) >= 2 or re.search(r"\b(?:nime\w+|nina\w+|kujiumiza|kujinyonga|kujiua)\b", value):
         return "Kiswahili"
