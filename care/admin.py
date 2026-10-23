@@ -18,16 +18,16 @@ class ReadOnlyRecords(admin.ModelAdmin):
 
 @admin.register(Participant)
 class ParticipantAdmin(admin.ModelAdmin):
-    actions = None
+    actions = ["delete_selected"]
 
     def get_readonly_fields(self, request, obj=None):
-        return tuple(f.name for f in self.model._meta.fields if f.name != "counsellor")
+        return ("code", "created_at", "consented_at", "minor_assent_at", "last_inbound_at", "deletion_requested_at")
 
     def has_add_permission(self, request):
         return False
 
     def has_delete_permission(self, request, obj=None):
-        return False
+        return bool(request.user and (request.user.is_staff or request.user.is_superuser))
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "counsellor":
@@ -35,9 +35,9 @@ class ParticipantAdmin(admin.ModelAdmin):
             kwargs["queryset"] = get_user_model().objects.filter(is_active=True, is_staff=False, care_profile__isnull=False)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    list_display = ("code", "display_name", "area", "counsellor")
-    search_fields = ("code", "display_name")
-    list_filter = ("area", "counsellor")
+    list_display = ("code", "display_name", "age", "area", "is_simulated", "counsellor")
+    search_fields = ("code", "display_name", "area")
+    list_filter = ("area", "counsellor", "is_simulated")
 
 @admin.register(MoodEntry)
 class MoodEntryAdmin(ReadOnlyRecords):
