@@ -20,6 +20,12 @@ staticfiles/
 media/
 checkpoints/
 outputs/
+kaggle_output/
+kaggle_dataset_upload/
+kaggle_kernel_push/
+*.zip
+models/sentiment/*.safetensors
+models/sentiment/*.bin
 *.safetensors
 *.pt
 *.pth
@@ -31,3 +37,5 @@ adapter_model.bin
 .idea/
 .DS_Store
 Thumbs.db
+models/sentiment_reports/*private*
+models/sentiment_reports/*ledger*
