@@ -39,3 +39,5 @@ adapter_model.bin
 Thumbs.db
 models/sentiment_reports/*private*
 models/sentiment_reports/*ledger*
+
+models/uliza_adapter/
