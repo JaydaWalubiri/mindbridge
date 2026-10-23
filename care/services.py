@@ -11,7 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from .models import InboundMessage, Keyword, MoodEntry, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WeeklyCheckIn
 from .model_ports import classify_note, generate_response
-from .response_policy import route, scripted_reply, select_language
+from .response_policy import normalise, route, scripted_reply, select_language
 
 CONSENT = ("Welcome to MindBridge. We can save your check-ins so a counsellor can review them. "
            "Is that okay? Reply 'I agree' to continue, or 'not now'.")
@@ -254,6 +254,14 @@ def process_message(participant, body, external_id):
         reply_source = "scripted_workflow"
         response_kind = route(text)
         response_language = select_language(text, participant.preferred_language)
+        if response_language == "Sheng" and participant.preferred_language != "sheng":
+            participant.preferred_language = "sheng"
+        elif response_language == "Kiswahili" and participant.preferred_language != "sw":
+            participant.preferred_language = "sw"
+        elif response_language == "English" and participant.preferred_language != "en":
+            val = normalise(text)
+            if len(re.findall(r"\b(?:i|my|me|we|you|is|are|am|have|feel|what|how|please)\b", val)) >= 2:
+                participant.preferred_language = "en"
         active_safety = participant.alerts.filter(status="open", priority="high",
             trigger_source__in=("Tier-1 keyword override", "response safety override")).first()
         if not response_kind and active_safety and participant.consented:

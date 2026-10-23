@@ -87,14 +87,54 @@ def language_name(value):
 def select_language(text, preferred="en"):
     """A best-effort hint; an explicit API language always takes precedence."""
     value = normalise(text)
-    sw = re.findall(r"\b(?:nina\w*|nime\w*|ime\w*|na\w+|sija\w*|hazi\w*|zinak\w*|nataka|niko|sijui|sina|siwezi|ni|kwa|yangu|yako|wangu|leo|dawa|vidonge|kujiua|kujiumiza|kujinyonga|rafiki|siku|hizi)\b", value)
-    mixed = re.search(r"\b(?:beshte|nafeel|nikifeel|kufeel|feel|stressed|stress|homework|class|school|exam|exams|siblings|solo|bro|late|poa|happy|nascroll|story|chuo|msee|manze|maze|wasee|ju|vibe|madhe|fathe|mtaa|ngumu|pressure|study|timetable|marks)\b", value)
-    if (sw and mixed) or re.search(r"\b(?:manze|maze|wasee|nikifeel|nafeel|beshte|chuo|niko poa)\b", value):
+    # 1. Explicit Sheng markers / Kenyan youth slang & code-mixing verbs
+    sheng_markers = re.search(
+        r"\b(?:manze|maze|wasee|msee|beshte|mabeshte|chuo|poa|vibe|dooh|doh|keja|"
+        r"nafeel|nikifeel|kufeel|kumtext|namtext|kummiss|nammiss|tunaeza|unaeza|anaeza|"
+        r"nipea|tupee|bonga|tupige story|story|tuachane|tuliachana|tuliwachana|kuachana|"
+        r"madhe|fathe|mtaa|dogo|masiblings|ball|job|nascroll|kcse|ameniskiza|anaskiza)\b",
+        value
+    )
+    if sheng_markers:
         return "Sheng"
-    if len(sw) >= 2 or re.search(r"\b(?:nime\w+|nina\w+|kujiumiza|kujinyonga|kujiua)\b", value):
+
+    # 2. General Swahili vocabulary and verb prefixes
+    sw_words = re.findall(
+        r"\b(?:nina\w*|nime\w*|ime\w*|na\w+|sija\w*|hazi\w*|zinak\w*|nataka|niko|sijui|sina|siwezi|"
+        r"tuna\w*|mna\w*|wana\w*|kuna\w*|mbona|habari|mzuri|shule|masomo|mitihani|mtihani|"
+        r"karo|pesa|fedha|familia|nyumbani|rafiki|marafiki|huzuni|upweke|kulia|maumivu|"
+        r"kusaidia|msaada|ushauri|mshauri|counsellor|daktari|dawa|vidonge|kujiua|kujiumiza|"
+        r"kujinyonga|siku|hizi|leo|jana|kesho|sawa|asante|shukran|sana|eeh|ndio|hapana|"
+        r"yangu|yako|wangu|wako|changu|chako|kwa|katika|lakini|bila|sababu)\b",
+        value
+    )
+
+    # 3. English indicators
+    eng_words = re.findall(
+        r"\b(?:i|my|me|we|you|they|he|she|it|is|are|am|was|were|have|has|had|"
+        r"feel|feeling|felt|want|wanted|think|thinking|need|needed|what|when|where|why|how|"
+        r"please|sorry|help|advice|talk|talking|text|texting|friend|friends|school|breakup|"
+        r"boyfriend|girlfriend|miss|missing|stress|stressed|exams|exam|fees|money)\b",
+        value
+    )
+
+    # If English words mix with Swahili words -> Sheng (Kenyan youth code-mixing)
+    if sw_words and eng_words:
+        return "Sheng"
+
+    # Strong Swahili presence without English
+    if len(sw_words) >= 1 and not eng_words:
+        if language_name(preferred) == "Sheng":
+            return "Sheng"
         return "Kiswahili"
-    if re.search(r"\b(?:i|my|am|feel|want|what|please)\b", value):
+
+    # Strong English presence without Swahili
+    if len(eng_words) >= 2 and not sw_words:
         return "English"
+    if re.search(r"\b(?:i|my|am|feel|want|what|please)\b", value) and not sw_words:
+        return "English"
+
+    # Short neutral replies ('yess', 'ok', etc.) inherit conversation context
     return language_name(preferred)
 
 
