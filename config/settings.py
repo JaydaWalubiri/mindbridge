@@ -3,6 +3,11 @@ import json
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+except ImportError:
+    pass
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "development-only-change-before-deployment")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
@@ -76,8 +81,10 @@ TURN_SUPPORT_TEMPLATE_NAME = os.environ.get("TURN_SUPPORT_TEMPLATE_NAME", "")
 RISK_NEGATIVE_THRESHOLD = float(os.environ.get("RISK_NEGATIVE_THRESHOLD", "0.85"))
 SENTIMENT_ENABLED = os.environ.get("SENTIMENT_ENABLED", "0") == "1"
 SENTIMENT_RISK_ENABLED = os.environ.get("SENTIMENT_RISK_ENABLED", "0") == "1"
-SENTIMENT_MODEL = os.environ.get("SENTIMENT_MODEL", "distilbert/distilbert-base-uncased-finetuned-sst-2-english")
-SENTIMENT_REVISION = os.environ.get("SENTIMENT_REVISION", "714eb0fa89d2f80546fda750413ed43d93601a13")
+_local_sentiment = BASE_DIR / "models" / "sentiment"
+_has_local_model = (_local_sentiment / "model.safetensors").is_file()
+SENTIMENT_MODEL = os.environ.get("SENTIMENT_MODEL", str(_local_sentiment) if _has_local_model else "distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+SENTIMENT_REVISION = os.environ.get("SENTIMENT_REVISION", "ad03426e4637f04d64fb1a30717029ccd6cb7054988020475db52569a7796798" if _has_local_model else "714eb0fa89d2f80546fda750413ed43d93601a13")
 CONVERSATION_ENABLED = os.environ.get("CONVERSATION_ENABLED", "0") == "1"
 CONVERSATION_URL = os.environ.get("CONVERSATION_URL", "")
 CONVERSATION_API_TOKEN = os.environ.get("CONVERSATION_API_TOKEN", "")

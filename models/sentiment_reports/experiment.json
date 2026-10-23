@@ -2,7 +2,7 @@
   "status": "trained; evaluation review required before risk activation",
   "base_model": "distilbert/distilbert-base-uncased",
   "base_revision": "12040accade4e8a0f71eabdb258fecc2e7e948be",
-  "artifact_sha256": "da498ab6c37b9397ad07097ecc98ffef9dc2e75e13c322ee3786c575171a24d5",
+  "artifact_sha256": "ad03426e4637f04d64fb1a30717029ccd6cb7054988020475db52569a7796798",
   "input_csv_sha256": "a04d4b4bc4cf8146773de338a08418dc4a790d4a7b3014806adbf474f87d9b25",
   "labels": [
     "negative",
