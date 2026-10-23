@@ -329,19 +329,21 @@ def process_message(participant, body, external_id):
                     else:
                         participant.onboarding_complete = True
                         assign_counsellor(participant)
-                        participant.flow_state = "mood"
-                        name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else ""
-                        reply = f"{name_greeting}Which hood are you closest to? (Choose below, or reply na number 1–5 to check in your mood):\n\n{WELCOME}"
-                        buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("checkin", "Check in (1–5)"))
+                        participant.flow_state = "location"
+                        name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else "Karibu! "
+                        reply = (f"{name_greeting}Which area are you closest to? "
+                                 "This helps us connect you with nearby health centres and counsellors in your community.")
+                        buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("area_other", "Other"))
             elif participant.flow_state == "minor_consent":
                 if command in ("i understand", "i agree"):
                     participant.minor_assent_at = timezone.now()
                     participant.onboarding_complete = True
                     assign_counsellor(participant)
-                    participant.flow_state = "mood"
-                    name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else ""
-                    reply = f"{name_greeting}Which hood are you closest to? (Choose below, or reply na number 1–5 to check in your mood):\n\n{WELCOME}"
-                    buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("checkin", "Check in (1–5)"))
+                    participant.flow_state = "location"
+                    name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else "Karibu! "
+                    reply = (f"{name_greeting}Which area are you closest to? "
+                             "This helps us connect you with nearby health centres and counsellors in your community.")
+                    buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("area_other", "Other"))
                 else:
                     reply = "Choose I understand to continue, or Not now to pause."
                     buttons = (("minor_yes", "I understand"), ("consent_no", "Not now"))
@@ -357,7 +359,29 @@ def process_message(participant, body, external_id):
         elif participant.flow_state == "booking":
             reply = select_booking(participant, command)
             buttons = (("checkin", "Check in"), ("request_session", "Counsellor"))
-        elif participant.flow_state == "mood" and command in ("area_kibera", "kibera", "area_mathare", "mathare", "area_kawangware", "kawangware", "area_mukuru", "mukuru", "area_korogocho", "korogocho"):
+        elif participant.flow_state == "location":
+            area_map = {
+                "area_kibera": "Kibera", "kibera": "Kibera",
+                "area_mathare": "Mathare", "mathare": "Mathare",
+                "area_kawangware": "Kawangware", "kawangware": "Kawangware",
+                "area_mukuru": "Mukuru", "mukuru": "Mukuru",
+                "area_korogocho": "Korogocho", "korogocho": "Korogocho",
+                "area_other": "Other", "other": "Other",
+            }
+            if command in ("1", "2", "3", "4", "5"):
+                MoodEntry.objects.create(participant=participant, score=int(command), recorded_at=timezone.now())
+                participant.flow_state = "note"
+                reply = AFTER_MOOD
+                analyse = True
+                buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
+            else:
+                chosen = area_map.get(command, text.strip()[:80] or "Other")
+                participant.area = chosen
+                participant.flow_state = "mood"
+                participant.save(update_fields=["area"])
+                reply = f"Noted, {participant.area}! Let's do your first check-in.\n\n{WELCOME}"
+                buttons = (("mood_1", "1 😔"), ("mood_2", "2 😕"), ("mood_3", "3 😐"), ("mood_4", "4 🙂"), ("mood_5", "5 😃"))
+        elif participant.flow_state == "mood" and command in ("area_kibera", "kibera", "area_mathare", "mathare", "area_kawangware", "kawangware", "area_mukuru", "mukuru", "area_korogocho", "korogocho", "area_other", "other"):
             area_map = {
                 "area_kibera": "Kibera", "kibera": "Kibera",
                 "area_mathare": "Mathare", "mathare": "Mathare",

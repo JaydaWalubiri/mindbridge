@@ -202,26 +202,126 @@ class LocalUlizaModel:
         return {"raw_response": cleaned, "token_limit_reached": False}
 
     def _synthesize_response(self, text, language, history):
+        prior = [turn.content.strip().casefold() for turn in history if turn.role == "assistant"]
         is_multi_turn = len(history) >= 2
 
-        # Academic / school / presentation
-        if any(w in text for w in ("mark", "exam", "grade", "school", "shule", "masomo", "class", "darasani", "homework", "presentation", "marks", "test")):
+        def pick_fresh(options):
+            for opt in options:
+                if not any(opt.strip().casefold() in p or p in opt.strip().casefold() for p in prior):
+                    return opt
+            return options[0]
+
+        has_siblings = any(w in text for w in ("sibling", "siblings", "ndugu", "watoto", "masibling", "take care", "care of", "chores", "duties", "baby", "dogo"))
+        has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "shule", "school", "masomo", "chuo", "kusoma", "study", "revise", "revision"))
+        has_no_time = any(w in text for w in ("sijakuwa na time", "sina time", "no time", "running out of time", "muda", "bado nafeel", "behind", "nyuma"))
+        has_alone_duty = any(w in text for w in ("hakuna msee", "mimi pekee", "peke yangu", "solo", "madhe", "fathe", "late", "job"))
+
+        # Family responsibility + exam conflict
+        if has_siblings and (has_exam or has_no_time):
+            if language == "Sheng":
+                return pick_fresh([
+                    "Kubalance kulea masiblings na kurevise for exams ni pressure mzito sana. Inaonyesha vile unajali family yako, lakini pia unahitaji time ya kusoma. Je, kuna msee home ama jirani unaweza request awashike kwa masaa machache upate time ya kurevise?",
+                    "Kusoma ukiwa na majukumu ya kutunza siblings si rahisi hata kidogo. Hufai kubeba hii stress pekee yako. Unaweza chagua hata dakika thelathini za kusoma mapema kabla wengine waamke, ama ungetaka uchat na counsellor wetu akusaidie kupata balance?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Kutunza ndugu zako wadogo huku ukijiandaa kwa mitihani ni mzigo mkubwa sana. Ni wazi kuwa unaipenda familia yako, lakini masomo yako pia ni muhimu. Je, kuna mtu wa karibu anayeweza kukusaidia kwa masaa machache ili upate nafasi ya kusoma?",
+                    "Kulea wadogo huku mitihani ikikaribia huleta shinikizo kubwa. Ungependa kupanga muda mfupi asubuhi wa kusoma, au tuzungumze na mshauri anayeweza kukusaidia kupanga ratiba yako?",
+                ])
+            else:
+                return pick_fresh([
+                    "Balancing caring for your siblings with studying for exams is an enormous load to carry. It shows how responsible and caring you are, but your own revision matters too. Is there a relative or trusted neighbour who could watch them for a few hours so you can focus?",
+                    "Caring for younger siblings while preparing for exams is exhausting. You don't have to carry this completely on your own. Would you like some practical tips on managing your time, or to connect with our counsellor?",
+                ])
+
+        # Sole caretaker with no support at home
+        if has_alone_duty and is_multi_turn:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Kuwa the only person anayetegemewa home wakati exams zinakaribia ni mzigo mkubwa sana. Hufai kubeba hii stress yote peke yako bila support. Unaweza jaribu kuweka hata dakika thelathini za kusoma mapema. Ungependa nikuunganishe na counsellor wetu wa MindBridge akusaidie kuweka balance?",
+                    "Inaeleweka kufeel stretched wakati hakuna msee wa kukushika mkono home. MindBridge tuko hapa kukusupport. Ungependa tuzungumze na counsellor wetu akusaidie kuplan time na kupunguza hii pressure?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Kuwa mtu pekee anayetegemewa nyumbani wakati mitihani inakaribia ni jambo gumu sana. Hupaswi kubeba mzigo huu mzito peke yako. Je, ungependa kuzungumza na mshauri wetu wa MindBridge akusaidie kupanga muda na kupata utulivu?",
+                ])
+            else:
+                return pick_fresh([
+                    "Being the only person relied upon at home while trying to study is an immense weight. You deserve support through this difficult period. Would you like to connect with our counsellor who can help you find balance?",
+                ])
+
+        # Time crunch / timetable struggle
+        if has_no_time and has_exam:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Wakati time inasonga na unahisi uko nyuma, inaeleweka kufeel panic. Hata kuweka dakika ishirini pekee leo za kurevise topic moja ndogo ni step kubwa. Ungependa tuangalie ratiba inayowezekana, ama tuongee na counsellor akusaidie kupanga time?",
+                    "Unaweza pia reset goal yako. Sometimes exam ikawa harder kuliko actual revision. Anza na topic moja ndogo ya kurevise leo halafu uchukue mapumziko mafupi.",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Wakati muda unazidi kuyoyoma na unahisi uko nyuma, ni kawaida kuwa na hofu. Hata dakika chache za kusoma mada moja ndogo leo zinaweza kuleta nafuu. Ungependa tupange mpango rahisi au uongee na mshauri wetu?",
+                ])
+            else:
+                return pick_fresh([
+                    "When time feels short and exams are approaching, it is completely natural to feel panicky. Even focusing on one small 20-minute section today can make a difference. Would you like to break it down, or speak with a counsellor about managing this pressure?",
+                ])
+
+        # Marks not improving
+        if any(w in text for w in ("marks", "hazichange", "improve", "improving", "fail", "grades")):
+            if language == "Sheng":
+                return pick_fresh([
+                    "Usifikirie entire exam kwa time moja. Play each question separate halafu uchague topic moja ndogo ya kurevise leo. Ungependa tuongee zaidi ama uchat na counsellor wetu?",
+                    "Kusoma kwa bidii bila kuona matokeo huleta frustration mob. Pengine unahitaji kubadili style ya study badala ya kuongeza hours. Ungependa tuangalie mbinu tofauti?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Inaeleweka kulemewa na masomo wakati matokeo hayabadiliki. Anza na kile unachoweza kushughulikia leo badala ya kila kitu kwa mara moja. Ungependa kuzungumza zaidi au kuunganishwa na mshauri wetu?",
+                ])
+            else:
+                return pick_fresh([
+                    "Maybe you need to identify what kind of study works best for you and what routine helps you focus. Taking it one subject at a time can ease the pressure. Would you like to talk more, or speak with a counsellor?",
+                ])
+
+        # General school stress / presentation
+        if any(w in text for w in ("mark", "exam", "grade", "school", "shule", "masomo", "class", "darasani", "homework", "presentation", "marks", "test", "stressed")):
             if language == "Sheng":
                 if any(w in text for w in ("presentation", "kuongea", "class")):
-                    return "Kuongea mbele ya watu huleta pressure mob. Unaweza try kupumua polepole ama upractice na beshte mmoja kwanza. Ungependa tuongee zaidi ama uchat na counsellor?"
-                if is_multi_turn or any(w in text for w in ("timetable", "bado", "wapi", "hard")):
-                    return "Unaweza pia reset goal yako. Sometimes exam ikawa harder kuliko actual revision. Anza na topic moja ndogo ya kurevise leo."
-                return "Usifikirie entire exam kwa time moja. Play each question separate halafu uchague topic moja ndogo ya kurevise leo. Ungependa tuongee zaidi ama uchat na counsellor wetu?"
+                    return pick_fresh([
+                        "Kuongea mbele ya watu huleta pressure mob. Unaweza try kupumua polepole ama upractice na beshte mmoja kwanza. Ungependa tuongee zaidi ama uchat na counsellor?",
+                    ])
+                if is_multi_turn:
+                    return pick_fresh([
+                        "Kuanza na step moja ndogo husaidia kupunguza pressure shuleni. Tuko hapa kukusupport kwa kila hatua. Ungetaka tupige story zaidi ama uongee na counsellor wetu akusaidie?",
+                        "Ni valid kabisa kufeel overwhelmed na school work. Unaweza panga kupumzika kidogo kabla uendelee. Ungependa kuongea na counsellor?",
+                    ])
+                return pick_fresh([
+                    "Pole sana kwa hiyo stress yote unayopitia shuleni. Ni valid kabisa kufeel overwhelmed wakati workload ni mob. Ni kitu gani specifically inakuletea pressure zaidi kwa masomo saa hii?",
+                    "Kusoma na kushughulikia maisha ya shule kunaweza kuwa na pressure mingi sana. Tuko hapa kukusikiza bila judge. Ungependa kueleza zaidi kilicho kigumu?",
+                ])
             elif language == "Kiswahili":
                 if any(w in text for w in ("darasa", "kuzungumza", "ongea")):
-                    return "Inaeleweka kuwa na wasiwasi unapozungumza mbele ya wengine. Unaweza kujaribu kufanya mazoezi na mtu unayemwamini kabla ya kuingia darasani. Ungependa kuzungumza zaidi kuhusu hili?"
-                return "Inaeleweka kulemewa na masomo wakati matokeo hayabadiliki. Anza na kile unachoweza kushughulikia leo badala ya kila kitu kwa mara moja. Ungependa kuzungumza zaidi au kuunganishwa na mshauri wetu?"
-            else:  # English
-                if any(w in text for w in ("presentation", "talk", "speak")):
-                    return "Speaking in front of others can feel really overwhelming. You could try taking slow deep breaths or practicing with one person you trust beforehand. What part feels most stressful to you?"
+                    return pick_fresh([
+                        "Inaeleweka kuwa na wasiwasi unapozungumza mbele ya wengine. Unaweza kujaribu kufanya mazoezi na mtu unayemwamini kabla ya kuingia darasani. Ungependa kuzungumza zaidi kuhusu hili?",
+                    ])
                 if is_multi_turn:
-                    return "Taking the very first small step is often the hardest part. You could choose just one small task to focus on today. Would you like to explore that together, or connect with a counsellor?"
-                return "Maybe you need to identify what kind of study works best for you and what routine helps you focus. Taking it one subject at a time can ease the pressure. Would you like to talk more, or speak with a counsellor?"
+                    return pick_fresh([
+                        "Kuchukua hatua moja ndogo kwa wakati kunaweza kukupa nafuu shuleni. Huna haja ya kubeba mzigo huu peke yako. Je, ungependa tuendelee kuzungumza au nikuunganishe na mshauri wetu?",
+                    ])
+                return pick_fresh([
+                    "Pole sana kwa msongo wa mawazo unaopitia shuleni. Ni jambo la kawaida kulemewa wakati majukumu ni mengi. Ni jambo gani hasa linalokupa shinikizo kubwa zaidi kwa sasa?",
+                ])
+            else:
+                if any(w in text for w in ("presentation", "talk", "speak")):
+                    return pick_fresh([
+                        "Speaking in front of others can feel really overwhelming. You could try taking slow deep breaths or practicing with one person you trust beforehand. What part feels most stressful to you?",
+                    ])
+                if is_multi_turn:
+                    return pick_fresh([
+                        "Taking it one small step at a time can help give you some breathing room. You don't have to carry this all on your own. Would you like to keep talking, or speak with a counsellor?",
+                    ])
+                return pick_fresh([
+                    "I hear how stressed you are feeling about school right now. Juggling classes and expectations can feel very heavy. What part of school is bringing you the most pressure right now?",
+                ])
 
         # Low mood / hopeless / giving up / exhausted
         if any(w in text for w in ("hopeless", "give up", "giving up", "ngumu", "life", "maisha", "tired", "choka", "nimechoka", "heavy", "exhausted", "kushindwa")):
