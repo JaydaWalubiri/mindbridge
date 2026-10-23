@@ -50,6 +50,9 @@
                 <button class="button" id="reset" type="button">
                     Start a new conversation
                 </button>
+                <button class="button danger compact" id="clear-tests" type="button" style="margin-top: 10px; width: 100%;">
+                    Clear all test conversations
+                </button>
             </div>
 
             <section class="nlp-panel" aria-live="polite">
@@ -177,7 +180,7 @@
                 : 'Sentiment is excluded from risk decisions.';
         }
 
-        async function send(body, reset = false, label = body) {
+        async function send(body, reset = false, label = body, clear_all = false) {
             if (busy) return;
 
             busy = true;
@@ -202,7 +205,7 @@
                                 '[name=csrfmiddlewaretoken]'
                             ).value
                         },
-                        body: JSON.stringify({ body, reset })
+                        body: JSON.stringify({ body, reset, clear_all })
                     }
                 );
 
@@ -257,6 +260,15 @@
         document.getElementById('reset').addEventListener(
             'click',
             () => send('Hello', true)
+        );
+
+        document.getElementById('clear-tests').addEventListener(
+            'click',
+            () => {
+                if (confirm('Delete all test chat participants from the database and start fresh?')) {
+                    send('Hello', true, 'Hello', true);
+                }
+            }
         );
 
         add(

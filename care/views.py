@@ -101,6 +101,12 @@ def participants(request):
 @counsellor_only
 def participant_detail(request, pk):
     person = get_object_or_404(assigned(request.user), pk=pk)
+    if request.method == "POST" and "area" in request.POST:
+        area = request.POST.get("area", "").strip()[:80]
+        person.area = area
+        person.save(update_fields=["area"])
+        messages.success(request, f"Location updated to: {area or 'Not provided'}")
+        return redirect("participant_detail", pk=pk)
     moods = list(person.moods.filter(recorded_at__gte=timezone.now()-timedelta(days=28)).order_by("recorded_at"))
     return render(request, "care/participant.html", {
         "person": person, "chat_entries": person.inbound_messages.all()[:8], "active": "participants", "moods": reversed(moods[-8:]),
@@ -318,9 +324,12 @@ def simulator_message(request):
     if not body:
         return JsonResponse({"error": "Write a message first"}, status=400)
     key = "simulated_participant_id"
-    person = Participant.objects.filter(pk=request.session.get(key), is_simulated=True).first()
+    if data.get("clear_all"):
+        Participant.objects.filter(is_simulated=True, code__startswith="MB-CHAT-").delete()
+        person = None
+    else:
+        person = Participant.objects.filter(pk=request.session.get(key), is_simulated=True).first()
     if not person or data.get("reset"):
-        # Keep previous demo records for reviewing the dashboard.
         person = Participant.objects.create(code="MB-CHAT-"+uuid.uuid4().hex[:10].upper(),
                     display_name="New participant", is_simulated=True)
         request.session[key] = person.pk
