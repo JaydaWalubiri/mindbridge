@@ -154,32 +154,54 @@ class LocalUlizaModel:
     def _query_api(self, request):
         api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
+            try:
+                from dotenv import load_dotenv
+                load_dotenv(ROOT.parent / ".env", override=True)
+                api_key = os.environ.get("GROQ_API_KEY")
+            except Exception:
+                pass
+        if not api_key:
             return None
+
         import urllib.request
         messages = [{"role": "system", "content": self.systems[request.language]}]
         for turn in request.history:
             messages.append({"role": turn.role, "content": turn.content})
         messages.append({"role": "user", "content": request.message})
-        payload = json.dumps({
-            "model": "llama-3.1-8b-instant",
-            "messages": messages,
-            "max_tokens": 150,
-            "temperature": 0.2
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            "https://api.groq.com/openai/v1/chat/completions",
-            data=payload,
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=5) as res:
-                data = json.loads(res.read().decode())
-                reply = data["choices"][0]["message"]["content"].strip()
-                cleaned = clean_reply(reply)
-                if not rejection_reason(cleaned, request.language):
-                    return cleaned
-        except Exception:
-            pass
+
+        preferred_model = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+        candidate_models = [preferred_model, "openai/gpt-oss-20b", "qwen/qwen3.8-27b"]
+        seen = set()
+        models_to_try = [m for m in candidate_models if m and not (m in seen or seen.add(m))]
+
+        for model_name in models_to_try:
+            payload = json.dumps({
+                "model": model_name,
+                "messages": messages,
+                "max_tokens": 400,
+                "temperature": 0.4
+            }).encode("utf-8")
+            req = urllib.request.Request(
+                "https://api.groq.com/openai/v1/chat/completions",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                    "User-Agent": "MindBridge/1.0"
+                }
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=12) as res:
+                    data = json.loads(res.read().decode())
+                    reply = data["choices"][0]["message"].get("content", "").strip()
+                    if reply:
+                        cleaned = clean_reply(reply)
+                        if not rejection_reason(cleaned, request.language):
+                            logger.info("Groq API (%s) generated reply successfully.", model_name)
+                            return cleaned
+            except Exception as e:
+                logger.warning("Groq API error on model %s: %s", model_name, e)
+                continue
         return None
 
     def generate(self, request):
@@ -215,7 +237,46 @@ class LocalUlizaModel:
         has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "masomo", "kusoma", "study", "revise", "revision"))
         has_no_time = any(w in text for w in ("sijakuwa na time", "sina time", "no time", "running out of time", "muda", "bado nafeel", "behind", "nyuma"))
         has_alone_duty = any(w in text for w in ("hakuna msee", "mimi pekee", "peke yangu", "solo", "madhe", "fathe", "late", "job"))
-        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "sad", "huzuni", "upweke", "bonga"))
+        has_breakup = any(w in text for w in ("boyfriend", "girlfriend", "tuliachana", "tuliwachana", "breakup", "broke up", "break up", "ex", "text him", "text her", "love", "heartbroken", "mapenzi"))
+        has_fees = any(w in text for w in ("fee", "fees", "school fees", "school fee", "karo", "fukuzwa", "kufukuzwa", "pesa za shule", "kulipia"))
+        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke"))
+
+        # Breakup / relationship distress
+        if has_breakup:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Pole sana manze. Breakup huuma sana na kuleta mawazo mob. Ni kawaida kufeel sad na hata kutaka kumtext, lakini kuchukua time ya kupumua kwanza husaidia. Ungependa kueleza kilichohappen, ama unajisikiaje saa hii?",
+                    "Kuvunja relationship na msee uliyemzoea si rahisi hata kidogo. Hufai kujibeba vibaya kwa kufeel hivi. Tuko hapa kukusikiza; ungependa kushea zaidi kuhusu jinsi unavyohisi?",
+                    "Nia ya kutaka kumtext inaonyesha vile bado unajali, lakini kumbuka sababu mlivunja kwanza kabla ya kuchukua step. Chukua hatua ndogo ya kupumzisha akili leo. Ungetaka tupige story zaidi?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Pole sana kwa unayopitia. Kuachana na mtu uliyempenda huleta maumivu makubwa ya moyo na hisia za kuchanganyikiwa. Ni kawaida kutaka kuwasiliana naye, lakini kujipa muda wa kutulia husaidia. Je, ungependa kunieleza zaidi kuhusu unavyojisikia?",
+                    "Kuvunjika kwa uhusiano ni jambo linaloumiza sana. Huna haja ya kupitia haya peke yako; tuko hapa kukusikiliza. Je, ungependa kushiriki zaidi kilichotokea?",
+                ])
+            else:
+                return pick_fresh([
+                    "I'm really sorry you're going through a breakup. It's completely understandable to feel sad and tempted to text him back, but giving yourself space to process your feelings first can bring clarity. Would you like to share what's on your mind right now?",
+                    "Heartbreak is really painful, and wanting to reach out to an ex is a very normal reaction. Taking a pause and doing something kind for yourself today can help. How are you holding up?",
+                ])
+
+        # School fees / exclusion distress
+        if has_fees:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Pole sana manze. Kufukuzwa shule ju ya school fees huleta stress kubwa na kufeel uko nyuma bila kosa lako. Hii si makosa yako na hufai kubeba hii stress solo. Je, kuna mzazi ama msee wa family unaweza kubonga naye kuhusu hii story?",
+                    "Inauma sana kutumwa home ju ya karo wakati unataka kusoma. Ni valid kufeel stressed kabisa. Tuko hapa kukusupport bila judgement. Ungependa kueleza zaidi vile mambo yako home saa hii?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Pole sana kwa changamoto hii ngumu ya karo ya shule. Kufukuzwa shule huleta shinikizo kubwa na huzuni, lakini si kosa lako. Je, kuna mtu katika familia au jamaa unayeweza kuzungumza naye kuhusu msaada wa karo?",
+                    "Kusimamishwa masomo kwa sababu ya karo ni mzigo mzito sana kwa mwanafunzi. Tuko hapa kukusikiliza na kukupa nafasi salama. Ungependa kueleza zaidi?",
+                ])
+            else:
+                return pick_fresh([
+                    "I'm so sorry you're dealing with being sent home over school fees. That is an enormous stress to carry and it is not your fault. Is there a family member, teacher, or trusted adult you can speak with about options for support?",
+                    "Being excluded from school due to fees is deeply distressing when all you want to do is learn. You are not alone in this. Would you like to talk about how things are at home?",
+                ])
 
         # Social isolation / loneliness / no friends (prioritized over general school)
         if has_lonely_friends:
