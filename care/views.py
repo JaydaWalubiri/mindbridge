@@ -13,7 +13,7 @@ from datetime import timedelta
 from django.http import HttpResponseNotAllowed, JsonResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from .forms import SessionForm, AvailabilityForm
 from .models import AvailabilitySlot, CounsellorProfile, InboundMessage, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WorkerStatus
@@ -179,6 +179,7 @@ def admin_dashboard(request):
 
 
 @login_required
+@ensure_csrf_cookie
 def whatsapp_preview(request):
     if not settings.DEBUG:
         raise Http404("Local simulator is disabled outside development.")
