@@ -330,14 +330,18 @@ def process_message(participant, body, external_id):
                         participant.onboarding_complete = True
                         assign_counsellor(participant)
                         participant.flow_state = "mood"
-                        reply = WELCOME
+                        name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else ""
+                        reply = f"{name_greeting}Which hood are you closest to? (Choose below, or reply na number 1–5 to check in your mood):\n\n{WELCOME}"
+                        buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("checkin", "Check in (1–5)"))
             elif participant.flow_state == "minor_consent":
                 if command in ("i understand", "i agree"):
                     participant.minor_assent_at = timezone.now()
                     participant.onboarding_complete = True
                     assign_counsellor(participant)
                     participant.flow_state = "mood"
-                    reply = WELCOME
+                    name_greeting = f"Karibu {participant.display_name}! " if participant.display_name else ""
+                    reply = f"{name_greeting}Which hood are you closest to? (Choose below, or reply na number 1–5 to check in your mood):\n\n{WELCOME}"
+                    buttons = (("area_kibera", "Kibera"), ("area_mathare", "Mathare"), ("area_kawangware", "Kawangware"), ("checkin", "Check in (1–5)"))
                 else:
                     reply = "Choose I understand to continue, or Not now to pause."
                     buttons = (("minor_yes", "I understand"), ("consent_no", "Not now"))
@@ -353,6 +357,18 @@ def process_message(participant, body, external_id):
         elif participant.flow_state == "booking":
             reply = select_booking(participant, command)
             buttons = (("checkin", "Check in"), ("request_session", "Counsellor"))
+        elif participant.flow_state == "mood" and command in ("area_kibera", "kibera", "area_mathare", "mathare", "area_kawangware", "kawangware", "area_mukuru", "mukuru", "area_korogocho", "korogocho"):
+            area_map = {
+                "area_kibera": "Kibera", "kibera": "Kibera",
+                "area_mathare": "Mathare", "mathare": "Mathare",
+                "area_kawangware": "Kawangware", "kawangware": "Kawangware",
+                "area_mukuru": "Mukuru", "mukuru": "Mukuru",
+                "area_korogocho": "Korogocho", "korogocho": "Korogocho",
+            }
+            participant.area = area_map[command]
+            participant.save(update_fields=["area"])
+            reply = f"Noted, {participant.area}! {WELCOME}"
+            buttons = (("mood_1", "1 😔"), ("mood_2", "2 😕"), ("mood_3", "3 😐"), ("mood_4", "4 🙂"), ("mood_5", "5 😃"))
         elif participant.flow_state == "mood" and command in ("1", "2", "3", "4", "5"):
             MoodEntry.objects.create(participant=participant, score=int(command), recorded_at=timezone.now())
             participant.flow_state = "note"
