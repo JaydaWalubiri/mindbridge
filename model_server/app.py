@@ -212,9 +212,29 @@ class LocalUlizaModel:
             return options[0]
 
         has_siblings = any(w in text for w in ("sibling", "siblings", "ndugu", "watoto", "masibling", "take care", "care of", "chores", "duties", "baby", "dogo"))
-        has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "shule", "school", "masomo", "chuo", "kusoma", "study", "revise", "revision"))
+        has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "masomo", "kusoma", "study", "revise", "revision"))
         has_no_time = any(w in text for w in ("sijakuwa na time", "sina time", "no time", "running out of time", "muda", "bado nafeel", "behind", "nyuma"))
         has_alone_duty = any(w in text for w in ("hakuna msee", "mimi pekee", "peke yangu", "solo", "madhe", "fathe", "late", "job"))
+        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "sad", "huzuni", "upweke", "bonga"))
+
+        # Social isolation / loneliness / no friends (prioritized over general school)
+        if has_lonely_friends:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Pole sana manze. Kuwa bila mabeshte shuleni kunaweza kufanya life iwe ngumu na yenye upweke mwingi. Hufai kupitia hii sadness solo; tuko hapa kubonga na wewe. Ni nini hua inahappen ukijaribu kuongea na wengine kwa class, ama ungetaka tupige story zaidi?",
+                    "Inauma sana kufeel uko peke yako shuleni wakati wengine wako na mabeshte zao. Sadness yako ni valid kabisa. Tuko hapa kukusikiza kila time; ungependa kueleza zaidi ama ungependa nikuunganishe na counsellor wetu akupatie support?",
+                    "Kufeel isolated ama kutengwa na wasee huuma sana. Hufai kubeba hii story peke yako mtaani. Ungependa tupige story zaidi ama nikuunganishe na counsellor wetu?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Pole sana kwa unachopitia. Kuhisi huna marafiki shuleni kunaweza kuleta huzuni na upweke mwingi sana. Huko peke yako; tuko hapa kuzungumza nawe. Je, ungependa kunieleza zaidi kuhusu unavyojisikia au nikuunganishe na mshauri wetu?",
+                    "Kuhisi kutengwa au upweke ni jambo linaloumiza sana moyoni. Kuna watu wanaokujali na unaweza kuzungumza na mtu unayemwamini. Ungependa nikuunganishe na mshauri wetu?",
+                ])
+            else:
+                return pick_fresh([
+                    "I'm really sorry you're going through that. Feeling like you have no friends at school can make every day feel so lonely and heavy. You don't have to carry this sadness by yourself. Would you like to talk through what's been happening, or connect with our counsellor?",
+                    "It can hurt deeply to feel isolated at school while everyone else has friends. Your sadness is completely understandable. Would you like to share what feels most difficult about school right now, or speak with a counsellor?",
+                ])
 
         # Family responsibility + exam conflict
         if has_siblings and (has_exam or has_no_time):
