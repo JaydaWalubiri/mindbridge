@@ -178,13 +178,10 @@ def admin_dashboard(request):
     })
 
 
-@login_required
 @ensure_csrf_cookie
 def whatsapp_preview(request):
     if not settings.DEBUG:
         raise Http404("Local simulator is disabled outside development.")
-    if not request.user.is_staff:
-        raise Http404()
     return render(request, "care/whatsapp_preview.html")
 
 
@@ -310,11 +307,10 @@ def assign_waiting(request):
     return redirect("admin_dashboard")
 
 
-@login_required
 @require_POST
 def simulator_message(request):
-    if not settings.DEBUG or not request.user.is_staff:
-        raise Http404()
+    if not settings.DEBUG:
+        raise Http404("Local simulator is disabled outside development.")
     try:
         data = json.loads(request.body)
     except (ValueError, UnicodeDecodeError):
@@ -334,13 +330,19 @@ def simulator_message(request):
         person = Participant.objects.create(code="MB-CHAT-"+uuid.uuid4().hex[:10].upper(),
                     display_name="New participant", is_simulated=True)
         request.session[key] = person.pk
+    if getattr(request.user, "is_authenticated", False) and not getattr(request.user, "is_staff", False):
+        if not person.counsellor_id:
+            person.counsellor = request.user
+            person.save(update_fields=["counsellor"])
     incoming, _ = process_message(person, body, "test-chat:"+uuid.uuid4().hex)
     person.refresh_from_db()
+    is_staff = getattr(request.user, "is_staff", False)
+    profile_url = f"/admin/care/participant/{person.pk}/change/" if is_staff else f"/participants/{person.pk}/"
     return JsonResponse({
         "reply": incoming.reply,
         "buttons": getattr(incoming, "suggested_buttons", ()),
         "code": person.code,
-        "profile_url": f"/participants/{person.pk}/",
+        "profile_url": profile_url,
         "state": person.flow_state,
         "assigned_to": (
             person.counsellor.get_full_name() or person.counsellor.username
