@@ -40,16 +40,24 @@ def dashboard(request):
     people = assigned(request.user)
     open_alerts = RiskAlert.objects.filter(participant__in=people, status=RiskAlert.OPEN)
     pending = SessionRequest.objects.filter(participant__in=people, status="pending").select_related("participant")
-    recent_sentiment = InboundMessage.objects.filter(
-        participant__in=people
-    ).exclude(sentiment_label="").select_related("participant").order_by(
-        "-received_at"
-    )[:6]
+    # Focus sentiment overview on participants with negative or flagged distress
+    sentiment_qs = InboundMessage.objects.filter(participant__in=people).exclude(sentiment_label="")
+    negative_count = sentiment_qs.filter(sentiment_label__iexact="negative").count()
+    positive_count = sentiment_qs.filter(sentiment_label__iexact="positive").count()
+    neutral_count = sentiment_qs.filter(sentiment_label__iexact="neutral").count()
+    
+    # Priority list shows participants expressing negative sentiment first
+    recent_sentiment = sentiment_qs.filter(
+        sentiment_label__iexact="negative"
+    ).select_related("participant").order_by("-received_at")[:5]
+    if not recent_sentiment.exists():
+        recent_sentiment = sentiment_qs.select_related("participant").order_by("-received_at")[:4]
     context = {
         "pending_requests": pending[:8], "request_count": pending.count(), "active": "dashboard", "total_people": people.count(), "open_count": open_alerts.count(),
         "upcoming_count": Session.objects.filter(participant__in=people, status="scheduled", starts_at__gte=timezone.now()).count(),
         "recent_alerts": open_alerts.select_related("participant")[:6],
         "recent_sentiment": recent_sentiment,
+        "sentiment_stats": {"negative": negative_count, "positive": positive_count, "neutral": neutral_count},
         "upcoming_sessions": Session.objects.filter(participant__in=people, status="scheduled",
                                                     starts_at__gte=timezone.now()).select_related("participant")[:4],
     }
@@ -126,8 +134,18 @@ def participant_detail(request, pk):
 @login_required
 @counsellor_only
 def sessions(request):
+    status_filter = request.GET.get("status", "scheduled")
     items = Session.objects.filter(participant__in=assigned(request.user)).select_related("participant", "counsellor")
-    return render(request, "care/sessions.html", {"sessions": items, "active": "sessions"})
+    if status_filter in ("scheduled", "completed", "cancelled"):
+        items = items.filter(status=status_filter)
+    elif status_filter == "all":
+        pass
+    else:
+        status_filter = "scheduled"
+        items = items.filter(status="scheduled")
+    return render(request, "care/sessions.html", {
+        "sessions": items, "status_filter": status_filter, "active": "sessions"
+    })
 
 
 @login_required

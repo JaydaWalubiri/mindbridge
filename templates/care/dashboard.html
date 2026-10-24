@@ -5,8 +5,13 @@
 <section class="panel">
     <div class="panel-head">
         <div>
-            <h3>Recent Sentiment Results</h3>
-            <p>Sentiment detected in recent participant messages</p>
+            <h3>Participant Wellbeing & Sentiment Monitor</h3>
+            <p>Prioritises participants expressing negative emotional distress</p>
+        </div>
+        <div style="display:flex;gap:8px;font-size:12px;">
+            <span class="badge high">Negative: {{ sentiment_stats.negative }}</span>
+            <span class="badge medium">Neutral: {{ sentiment_stats.neutral }}</span>
+            <span class="badge low">Positive: {{ sentiment_stats.positive }}</span>
         </div>
     </div>
 
@@ -14,27 +19,25 @@
         <div class="list-row">
             <div class="row-text">
                 <strong>{{ entry.participant.display_name }}</strong>
-                <small>{{ entry.body|truncatechars:90 }}</small>
+                <small style="color:var(--text-muted,#555);">"{{ entry.body|truncatechars:110 }}"</small>
             </div>
 
             <div class="row-end">
-                <span class="badge">{{ entry.sentiment_label|title }}</span>
+                <span class="badge {% if entry.sentiment_label == 'negative' %}high{% elif entry.sentiment_label == 'positive' %}low{% else %}medium{% endif %}">
+                    {{ entry.sentiment_label|title }}
+                </span>
                 {% if entry.sentiment_score != None %}
-                    <small>
-                        Confidence:
-                        {% widthratio entry.sentiment_score 1 100 %}%
-                    </small>
+                    <small>Confidence: {% widthratio entry.sentiment_score 1 100 %}%</small>
                 {% endif %}
                 <small>{{ entry.received_at|date:'d M, H:i' }}</small>
-                <a class="name-link"
-                   href="{% url 'participant_detail' entry.participant.pk %}">
-                    View profile →
+                <a class="button compact" href="{% url 'participant_detail' entry.participant.pk %}">
+                    Review participant →
                 </a>
             </div>
         </div>
     {% empty %}
         <div class="empty">
-            No sentiment results available yet.
+            All participants are currently within normal sentiment ranges. No distress signals detected.
         </div>
     {% endfor %}
 </section>

@@ -298,6 +298,27 @@ def process_message(participant, body, external_id):
             reply = "That's okay. Check-ins are paused. Message us whenever you're ready to continue."
             OutboundMessage.objects.filter(participant=participant, status="pending").update(status="cancelled")
             buttons = (("consent_yes", "I agree"),)
+        elif active_safety and bool(re.search(r"\b(?:sina\s+mtu|sina\s+msee|hakuna\s+msee|hakuna\s+mtu|no\s+one|nobody|anyone|alone|pekee?\s+yangu|solo)\b", normalise(text))):
+            from .workflows import slot_prompt
+            assign_counsellor(participant)
+            booking_text = slot_prompt(participant)
+            if response_language == "English":
+                reply = ("I am concerned about your safety. If you are in immediate danger, please call 999 or 112 in Kenya. "
+                         "You are not alone right now; MindBridge is here with you. "
+                         "We have caring, confidential counsellors who can speak with you and support you at no cost.\n\n"
+                         + booking_text)
+            elif response_language == "Kiswahili":
+                reply = ("Ninahofia usalama wako. Ikiwa uko hatarini sasa hivi, tafadhali piga 999 au 112 nchini Kenya. "
+                         "Huko peke yako; MindBridge tuko hapa kwa ajili yako. "
+                         "Tuna washauri wa siri wanaoweza kuzungumza nawe sasa bila gharama yoyote.\n\n"
+                         + booking_text)
+            else:
+                reply = ("Ninahofia safety yako. Kama uko kwa danger sasa hivi, piga 999 ama 112 Kenya. "
+                         "Huko solo manze; MindBridge tuko hapa na wewe. "
+                         "Tuna counsellors wa siri wako ready kubonga nawe sasa bila malipo yoyote.\n\n"
+                         + booking_text)
+            reply_source = "scripted_safety"
+            buttons = (("request_session", "Book Counsellor"), ("checkin", "Check in"))
         elif response_kind in ("urgent", "friend_risk"):
             # Emergency guidance must not wait for onboarding or model/network calls.
             reply = scripted_reply(response_kind, response_language)
