@@ -197,7 +197,7 @@ class LocalUlizaModel:
                     if reply:
                         cleaned = clean_reply(reply)
                         if request.history:
-                            cleaned = re.sub(r"^(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+                            cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
                             if cleaned:
                                 cleaned = cleaned[0].upper() + cleaned[1:]
                         if not rejection_reason(cleaned, request.language):
@@ -226,7 +226,7 @@ class LocalUlizaModel:
         reply = self._synthesize_response(msg_norm, lang, request.history)
         cleaned = clean_reply(reply)
         if request.history:
-            cleaned = re.sub(r"^(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+            cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
             if cleaned:
                 cleaned = cleaned[0].upper() + cleaned[1:]
         return {"raw_response": cleaned, "token_limit_reached": False}
