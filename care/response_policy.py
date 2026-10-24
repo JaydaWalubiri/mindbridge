@@ -24,7 +24,9 @@ _DANGER = re.compile(
     r"overdos\w*|(?:swallowed|taken)\s+(?:too\s+many|many|all)\s+(?:pills|tablets)|"
     r"nimemeza\s+(?:vidonge|tablets)\s+(?:vingi|mingi)|"
     r"nataka\s+kujitoa|kufunga\s+hii\s+chapter|bora\s+kukuwa\s+dead|kujirusha|kudedi|"
-    r"kujihepa|bora\s+nikafie\s+mbali|heri\s+ningededi|nataka\s+kudedi)\b", re.I)
+    r"kujihepa|bora\s+nikafie\s+mbali|heri\s+ningededi|nataka\s+kudedi|" \
+    r"(?:naeza|naweza|nataka|nita|ta|wacha|bora|heri)\s+(?:jiua|jinyonga|jimaliza|dedi)|" \
+    r"jiua|nijiue)\b", re.I)
 _MEDICATION = re.compile(
     r"\b(?:medicin\w*|medication\w*|meds?|pills?|tablets?|doses?|dosage|"
     r"pharmac\w*|prescription\w*|supplement\w*|melatonin\w*|"
