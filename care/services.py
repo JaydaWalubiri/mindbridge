@@ -233,6 +233,19 @@ def risk_signals(participant, text=""):
     return assess(participant, text)
 
 
+def extract_mood_score(command_text, raw_text):
+    """Extract mood score (1-5) from button keys, digits, or formatted emoji strings."""
+    cmd = (command_text or "").strip().casefold()
+    raw = (raw_text or "").strip()
+    if cmd in ("mood_1", "mood_2", "mood_3", "mood_4", "mood_5"):
+        return int(cmd[-1])
+    if cmd in ("1", "2", "3", "4", "5"):
+        return int(cmd)
+    m = re.match(r"^(?:mood\s*)?([1-5])(?:\s*[\-—:]?\s*[𐀀-􏿿\s]*)$", raw, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    return None
+
 def process_message(participant, body, external_id):
     """Persistent conversation used by Turn.io and by the staff-only local test chat."""
     from .workflows import assign_counsellor, create_alert, slot_prompt, select_booking
@@ -246,7 +259,8 @@ def process_message(participant, body, external_id):
         incoming = InboundMessage.objects.create(external_id=external_id, participant=participant, body=text)
         command = text.casefold()
         command = {"consent_yes": "i agree", "consent_no": "not now", "request_session": "session",
-                   "checkin": "check in", "pause": "pause", "minor_yes": "i understand"}.get(command, command)
+                   "checkin": "check in", "pause": "pause", "minor_yes": "i understand",
+                   "mood_1": "1", "mood_2": "2", "mood_3": "3", "mood_4": "4", "mood_5": "5"}.get(command, command)
         participant.last_inbound_at = timezone.now()
         buttons = ()
         classification = None
@@ -364,6 +378,7 @@ def process_message(participant, body, external_id):
         elif command in ("check in", "check in again", "check-in", "mood"):
             participant.flow_state = "mood"
             reply = WELCOME
+            buttons = (("mood_1", "1 😔"), ("mood_2", "2 😕"), ("mood_3", "3 😐"), ("mood_4", "4 🙂"), ("mood_5", "5 😃"))
         elif participant.flow_state == "booking":
             reply = select_booking(participant, command)
             buttons = (("checkin", "Check in"), ("request_session", "Counsellor"))
@@ -376,9 +391,15 @@ def process_message(participant, body, external_id):
                 "area_korogocho": "Korogocho", "korogocho": "Korogocho",
                 "area_other": "Other", "other": "Other",
             }
-            if command in ("1", "2", "3", "4", "5"):
-                MoodEntry.objects.create(participant=participant, score=int(command), recorded_at=timezone.now())
+            mood_score = extract_mood_score(command, text)
+            if mood_score is not None:
+                MoodEntry.objects.create(participant=participant, score=mood_score, recorded_at=timezone.now())
                 participant.flow_state = "note"
+                today = timezone.localdate()
+                week_start = today - timedelta(days=today.weekday())
+                WeeklyCheckIn.objects.update_or_create(
+                    participant=participant, week_start=week_start, defaults={"status": "completed"}
+                )
                 reply = AFTER_MOOD
                 analyse = True
                 buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
@@ -401,9 +422,17 @@ def process_message(participant, body, external_id):
             participant.save(update_fields=["area"])
             reply = f"Noted, {participant.area}! {WELCOME}"
             buttons = (("mood_1", "1 😔"), ("mood_2", "2 😕"), ("mood_3", "3 😐"), ("mood_4", "4 🙂"), ("mood_5", "5 😃"))
-        elif participant.flow_state == "mood" and command in ("1", "2", "3", "4", "5"):
-            MoodEntry.objects.create(participant=participant, score=int(command), recorded_at=timezone.now())
+        elif extract_mood_score(command, text) is not None and (
+            participant.flow_state in ("mood", "note", "location", "menu") or participant.onboarding_complete
+        ):
+            score_to_save = extract_mood_score(command, text)
+            MoodEntry.objects.create(participant=participant, score=score_to_save, recorded_at=timezone.now())
             participant.flow_state = "note"
+            today = timezone.localdate()
+            week_start = today - timedelta(days=today.weekday())
+            WeeklyCheckIn.objects.update_or_create(
+                participant=participant, week_start=week_start, defaults={"status": "completed"}
+            )
             reply = AFTER_MOOD
             analyse = True
             buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))

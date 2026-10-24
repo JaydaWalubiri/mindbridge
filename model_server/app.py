@@ -216,6 +216,12 @@ class LocalUlizaModel:
                             if cleaned:
                                 cleaned = cleaned[0].upper() + cleaned[1:]
                         if not rejection_reason(cleaned, request.language):
+                            from care.response_policy import _DANGER
+                            if not _DANGER.search(request.message):
+                                cleaned = re.sub(r"\b(?:breath\s+kid[gd]o[\s,!:\-—]*)?usijiumize\s+tuko\s+hapa[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
+                                cleaned = re.sub(r"\busijiumize[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
+                                if cleaned:
+                                    cleaned = cleaned[0].upper() + cleaned[1:]
                             logger.info("Groq API (%s) generated reply successfully.", model_name)
                             return cleaned
             except Exception as e:
@@ -264,7 +270,9 @@ class LocalUlizaModel:
         has_pregnancy = any(w in text for w in ("pregnant", "mimba", "pregnancy", "clinic", "abort", "abortion", "kuabort", "kutoa mimba", "nimepata mimba"))
         has_breakup = any(w in text for w in ("boyfriend", "girlfriend", "tuliachana", "tuliwachana", "breakup", "broke up", "break up", "ex", "text him", "text her", "love", "heartbroken", "mapenzi"))
         has_fees = any(w in text for w in ("fee", "fees", "school fees", "school fee", "karo", "fukuzwa", "kufukuzwa", "pesa za shule", "kulipia"))
-        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke"))
+        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke", "hakuna place"))
+        has_parent_conflict = any(w in text for w in ("fighting", "fight", "kufight", "wazazi kufight", "parents fighting", "wazazi", "parents", "argue", "arguing", "zozano", "ugomvi", "makelele"))
+        has_concentration = any(w in text for w in ("concentrate", "concentration", "focus", "kushindwa kusoma", "distraction"))
 
         # Pregnancy / reproductive health distress
         if has_pregnancy:
@@ -317,6 +325,37 @@ class LocalUlizaModel:
                 return pick_fresh([
                     "I'm so sorry you're dealing with being sent home over school fees. That is an enormous stress to carry and it is not your fault. Is there a family member, teacher, or trusted adult you can speak with about options for support?",
                     "Being excluded from school due to fees is deeply distressing when all you want to do is learn. You are not alone in this. Would you like to talk about how things are at home?",
+                ])
+
+        # Conflict at home / parents fighting + concentration / study
+        if has_parent_conflict and has_concentration:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Kujaribu kusoma kukiwa na makelele na mvutano wa wazazi home ni ngumu sana, na ni kawaida kabisa kukosa concentration. Unaweza jaribu kusoma mapema asubuhi kukiwa tulivu, au library/shuleni kwa muda. Ungependa tujaribu kuangalia jinsi unaweza kupanga muda wako wa study?",
+                    "Inaeleweka kabisa kushindwa kufocus wakati home kuko na fujo. Hii si kosa lako na hufai kujilaumu. Ungependa kupata nafasi salama ya kuzungumza na counsellor wetu akupatie support ya jinsi ya kuhandle hii stress?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Kujaribu kuzingatia masomo wakati kuna ugomvi nyumbani ni jambo gumu sana. Ni kawaida kukosa utulivu wa kusoma. Je, ungependa kupata mwongozo wa jinsi ya kupanga ratiba yako au tuzungumze na mshauri?",
+                ])
+            else:
+                return pick_fresh([
+                    "Trying to study while there is fighting at home is exhausting, and it is completely normal to lose focus. It is not your fault. Would you like some tips on finding quiet study spots, or to speak with a counsellor?",
+                ])
+
+        if has_parent_conflict:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Inaeleweka sana kufeel drained na stressed. Kuona wazazi wakizozana huleta tension kubwa sana home na si kosa lako hata kidogo. Je, kuna mahali tulivu unaweza kujitenga kidogo upate utulivu?",
+                    "Kuishi katika nyumba yenye vita na tension kila wakati huumiza sana moyoni. Huko peke yako katika haya. Je, ungependa kushiriki zaidi au uzungumze na counsellor wetu?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Inaeleweka sana kulemewa na msongo wa mawazo wakati kuna ugomvi nyumbani. Hilo si kosa lako hata kidogo. Je, kuna mahali salama na tulivu unakoweza kupumzisha akili yako?",
+                ])
+            else:
+                return pick_fresh([
+                    "Living with ongoing conflict between parents is deeply stressful and exhausting, and it is not your fault. Is there a quiet, safe place where you can step away to find some peace?",
                 ])
 
         # Social isolation / loneliness / no friends (prioritized over general school)

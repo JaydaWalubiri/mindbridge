@@ -107,12 +107,19 @@ def participant_detail(request, pk):
         person.save(update_fields=["area"])
         messages.success(request, f"Location updated to: {area or 'Not provided'}")
         return redirect("participant_detail", pk=pk)
-    moods = list(person.moods.filter(recorded_at__gte=timezone.now()-timedelta(days=28)).order_by("recorded_at"))
+    all_moods = list(person.moods.order_by("recorded_at"))
+    recent_moods = list(person.moods.order_by("-recorded_at")[:8])
+    chart_moods = all_moods[-12:]
     return render(request, "care/participant.html", {
-        "person": person, "chat_entries": person.inbound_messages.all()[:8], "active": "participants", "moods": reversed(moods[-8:]),
-        "chart_labels": json.dumps([m.recorded_at.strftime("%d %b") for m in moods[-12:]]),
-        "chart_scores": json.dumps([m.score for m in moods[-12:]]),
-        "alerts": person.alerts.all()[:5], "sessions": person.sessions.all()[:5],
+        "person": person,
+        "chat_entries": person.inbound_messages.all()[:12],
+        "active": "participants",
+        "latest_checkin": person.weekly_checkins.first(),
+        "moods": recent_moods,
+        "chart_labels": json.dumps([m.recorded_at.strftime("%d %b") for m in chart_moods]),
+        "chart_scores": json.dumps([m.score for m in chart_moods]),
+        "alerts": person.alerts.all()[:5],
+        "sessions": person.sessions.all()[:5],
     })
 
 
