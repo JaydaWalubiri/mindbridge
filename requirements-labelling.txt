@@ -1,0 +1,6 @@
+# Sentiment labelling pipeline tools
+# Install with: pip install -r requirements-labelling.txt
+pandas>=2.2
+numpy>=1.26
+openpyxl>=3.1
+scikit-learn>=1.4

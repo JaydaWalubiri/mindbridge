@@ -1,0 +1,57 @@
+{% extends 'care/base.html' %}{% block title %}Sessions{% endblock %}{% block crumb %}Sessions{% endblock %}{% block content %}
+<div class="page-heading">
+    <div>
+        <div class="eyebrow">CONVERSATIONS</div>
+        <h1>Sessions</h1>
+        <p>Manage upcoming and previous appointments. Completed sessions are cleared from the active schedule.</p>
+    </div>
+    <a class="button primary" href="{% url 'participants' %}">Choose participant +</a>
+</div>
+
+<div style="display:flex;gap:10px;margin-bottom:16px;">
+    <a class="button compact {% if status_filter == 'scheduled' %}primary{% else %}light{% endif %}" href="{% url 'sessions' %}?status=scheduled">Upcoming / Scheduled</a>
+    <a class="button compact {% if status_filter == 'completed' %}primary{% else %}light{% endif %}" href="{% url 'sessions' %}?status=completed">Completed</a>
+    <a class="button compact {% if status_filter == 'all' %}primary{% else %}light{% endif %}" href="{% url 'sessions' %}?status=all">All Sessions</a>
+</div>
+
+<section class="panel table-panel">
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Participant</th>
+                    <th>Date & time</th>
+                    <th>Counsellor</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <td><a class="name-link" href="{% url 'participant_detail' session.participant_id %}">{{ session.participant.display_name }}</a></td>
+                    <td>{{ session.starts_at|date:'D, d M Y · H:i' }} EAT</td>
+                    <td>{{ session.counsellor.get_full_name|default:session.counsellor.username }}</td>
+                    <td><span class="badge {% if session.status == 'completed' %}low{% elif session.status == 'scheduled' %}medium{% else %}high{% endif %}">{{ session.get_status_display }}</span></td>
+                    <td>
+                        {% if session.status == 'scheduled' %}
+                        <form method="post" action="{% url 'update_session' session.pk %}">
+                            {% csrf_token %}
+                            <button class="button compact" name="status" value="completed">Mark completed</button>
+                            <button class="button compact" name="status" value="cancelled">Cancel session</button>
+                        </form>
+                        {% else %}
+                        <small style="color:var(--text-muted, #7d8985);">No action needed</small>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="empty">No {{ status_filter }} sessions found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
