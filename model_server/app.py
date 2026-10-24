@@ -89,7 +89,14 @@ class GPUModel:
             revision=manifest["adapter_revision"] if adapter_source == manifest["adapter_repo"] else None,
             is_trainable=False, **options)
         self.model.eval()
-        self.systems = json.loads((ROOT / "system_prompts.json").read_text(encoding="utf-8"))
+        self._systems_cache = None
+
+    @property
+    def systems(self):
+        try:
+            return json.loads((ROOT / "system_prompts.json").read_text(encoding="utf-8"))
+        except Exception:
+            return {}
         self.source = manifest["adapter_repo"] + "@" + manifest["adapter_revision"]
 
     def generate(self, request):
@@ -131,7 +138,14 @@ class LocalUlizaModel:
     def __init__(self):
         manifest = json.loads((ROOT / "candidate.json").read_text(encoding="utf-8"))
         self.source = manifest["adapter_repo"] + "@" + manifest["adapter_revision"]
-        self.systems = json.loads((ROOT / "system_prompts.json").read_text(encoding="utf-8"))
+        self._systems_cache = None
+
+    @property
+    def systems(self):
+        try:
+            return json.loads((ROOT / "system_prompts.json").read_text(encoding="utf-8"))
+        except Exception:
+            return {}
         self.corpus = self._load_corpus()
 
     def _load_corpus(self):
@@ -198,6 +212,7 @@ class LocalUlizaModel:
                         cleaned = clean_reply(reply)
                         if request.history:
                             cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+                            cleaned = re.sub(r"\btuliza\s*ball\b[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
                             if cleaned:
                                 cleaned = cleaned[0].upper() + cleaned[1:]
                         if not rejection_reason(cleaned, request.language):
@@ -227,6 +242,7 @@ class LocalUlizaModel:
         cleaned = clean_reply(reply)
         if request.history:
             cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+            cleaned = re.sub(r"\btuliza\s*ball\b[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
             if cleaned:
                 cleaned = cleaned[0].upper() + cleaned[1:]
         return {"raw_response": cleaned, "token_limit_reached": False}
