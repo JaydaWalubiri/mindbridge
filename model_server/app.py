@@ -196,6 +196,10 @@ class LocalUlizaModel:
                     reply = data["choices"][0]["message"].get("content", "").strip()
                     if reply:
                         cleaned = clean_reply(reply)
+                        if request.history:
+                            cleaned = re.sub(r"^(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+                            if cleaned:
+                                cleaned = cleaned[0].upper() + cleaned[1:]
                         if not rejection_reason(cleaned, request.language):
                             logger.info("Groq API (%s) generated reply successfully.", model_name)
                             return cleaned
@@ -221,6 +225,10 @@ class LocalUlizaModel:
         # 3. Contextual conversational generation based on topic and language
         reply = self._synthesize_response(msg_norm, lang, request.history)
         cleaned = clean_reply(reply)
+        if request.history:
+            cleaned = re.sub(r"^(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+            if cleaned:
+                cleaned = cleaned[0].upper() + cleaned[1:]
         return {"raw_response": cleaned, "token_limit_reached": False}
 
     def _synthesize_response(self, text, language, history):
@@ -237,9 +245,26 @@ class LocalUlizaModel:
         has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "masomo", "kusoma", "study", "revise", "revision"))
         has_no_time = any(w in text for w in ("sijakuwa na time", "sina time", "no time", "running out of time", "muda", "bado nafeel", "behind", "nyuma"))
         has_alone_duty = any(w in text for w in ("hakuna msee", "mimi pekee", "peke yangu", "solo", "madhe", "fathe", "late", "job"))
+        has_pregnancy = any(w in text for w in ("pregnant", "mimba", "pregnancy", "clinic", "abort", "abortion", "kuabort", "kutoa mimba", "nimepata mimba"))
         has_breakup = any(w in text for w in ("boyfriend", "girlfriend", "tuliachana", "tuliwachana", "breakup", "broke up", "break up", "ex", "text him", "text her", "love", "heartbroken", "mapenzi"))
         has_fees = any(w in text for w in ("fee", "fees", "school fees", "school fee", "karo", "fukuzwa", "kufukuzwa", "pesa za shule", "kulipia"))
         has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke"))
+
+        # Pregnancy / reproductive health distress
+        if has_pregnancy:
+            if language == "Sheng":
+                return pick_fresh([
+                    "Inaeleweka kufeel scared na kuchanganyikiwa wakati huu. Hufai kupitia hii pressure solo; vituo vya afya vya vijana (youth-friendly health centres) na public hospitals zinatoa huduma na ushauri wa siri bila malipo makubwa. Pia kuna helpline za bure Kenya kama Childline 1190 au 1195. Ungependa tusaidiane kuangalia kituo kilicho karibu na wewe?",
+                    "Kupata mimba kukiwa na hofu ya wazazi huleta mshtuko mkubwa sana. Tuko hapa kukusikiliza bila judgement. Madaktari na counsellors wa vituo vya afya vya umma wanaweza kukusaidia kwa siri na usalama. Ungependa kupata contact za mahali unaweza kupata msaada salama?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Inaeleweka sana kuwa na hofu na mshtuko mkubwa wakati huu. Huko peke yako; vituo vya afya vya umma na madawati ya vijana vinatoa ushauri salama na wa siri bila gharama kubwa, na nambari za bure kama 1190 au 1195 zipo kukusaidia. Je, ungependa tukuelekeze kwenye kituo cha afya kilicho karibu?",
+                ])
+            else:
+                return pick_fresh([
+                    "It is completely understandable to feel overwhelmed and terrified right now. You do not have to handle this alone. Public youth-friendly health clinics offer confidential, subsidised care, and free helplines like Childline 1190 and 1195 are available 24/7. Would you like help finding a safe, confidential clinic near you?",
+                ])
 
         # Breakup / relationship distress
         if has_breakup:
