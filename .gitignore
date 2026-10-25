@@ -41,3 +41,5 @@ models/sentiment_reports/*private*
 models/sentiment_reports/*ledger*
 
 models/uliza_adapter/
+cloudflared.exe
+

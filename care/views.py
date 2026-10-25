@@ -10,7 +10,9 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q
 from datetime import timedelta
-from django.http import HttpResponseNotAllowed, JsonResponse, Http404, HttpResponseForbidden
+import html
+import re
+from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse, Http404, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -255,6 +257,39 @@ def turn_webhook(request):
         process_message(person, body, str(message["id"])[:128])
         processed += 1
     return JsonResponse({"received": processed})
+
+
+@csrf_exempt
+def twilio_webhook(request):
+    """Twilio WhatsApp webhook endpoint for live mobile testing."""
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["POST"])
+
+    raw_from = request.POST.get("From", "").strip()
+    wa_id = re.sub(r"^whatsapp:", "", raw_from).strip()
+    body = request.POST.get("Body", "").strip()
+    message_id = request.POST.get("MessageSid", "").strip() or f"tw-{uuid.uuid4().hex[:12]}"
+    profile_name = request.POST.get("ProfileName", "").strip()
+
+    if not wa_id or not body:
+        return HttpResponse('<?xml version="1.0" encoding="UTF-8"?><Response/>', content_type="application/xml")
+
+    person, _ = Participant.objects.get_or_create(wa_id=wa_id, defaults={
+        "code": "MB-" + uuid.uuid4().hex[:12].upper(),
+        "display_name": profile_name or ("Participant " + uuid.uuid4().hex[:6].upper()),
+    })
+
+    incoming, _ = process_message(person, body, message_id[:128])
+    reply_text = incoming.reply or ""
+
+    buttons = getattr(incoming, "suggested_buttons", None) or ()
+    if buttons:
+        btn_block = "\n".join([f"• {title}" for _, title in buttons])
+        if btn_block not in reply_text:
+            reply_text = f"{reply_text}\n\n{btn_block}"
+
+    twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{html.escape(reply_text)}</Message></Response>'
+    return HttpResponse(twiml, content_type="application/xml")
 
 
 @login_required

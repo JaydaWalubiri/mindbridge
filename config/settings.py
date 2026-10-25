@@ -10,7 +10,11 @@ except ImportError:
     pass
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "development-only-change-before-deployment")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
+if DEBUG:
+    for domain in (".trycloudflare.com", ".ngrok-free.app", ".ngrok.io", "localhost", "127.0.0.1", "testserver"):
+        if domain not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(domain)
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",

@@ -17,4 +17,5 @@ urlpatterns = [
     path("workspace-admin/", views.admin_dashboard, name="admin_dashboard"),
     path("preview/whatsapp/", views.whatsapp_preview, name="whatsapp_preview"),
     path("webhooks/turn/", views.turn_webhook, name="turn_webhook"),
+    path("webhooks/twilio/", views.twilio_webhook, name="twilio_webhook"),
 ]
