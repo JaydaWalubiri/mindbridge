@@ -91,6 +91,10 @@ class GPUModel:
         self.model.eval()
         self._systems_cache = None
 
+        self.corpus = self._load_corpus()
+
+        self.corpus = self._load_corpus()
+
     @property
     def systems(self):
         try:
@@ -140,6 +144,8 @@ class LocalUlizaModel:
         self.source = manifest["adapter_repo"] + "@" + manifest["adapter_revision"]
         self._systems_cache = None
 
+        self.corpus = self._load_corpus()
+
     @property
     def systems(self):
         try:
@@ -178,8 +184,21 @@ class LocalUlizaModel:
             return None
 
         import urllib.request
-        messages = [{"role": "system", "content": self.systems[request.language]}]
-        for turn in request.history:
+        from care.response_policy import select_language
+        effective_history = []
+        for idx in range(0, len(request.history) - 1, 2):
+            u_turn, a_turn = request.history[idx], request.history[idx + 1]
+            if select_language(u_turn.content, request.language) == request.language:
+                clean_a = re.sub(r"[^.?!]*\b(?:hobby|sport|club|music)\b[^.?!]*[.?!]?", "", a_turn.content, flags=re.I).strip() or a_turn.content
+                effective_history.extend([u_turn, Turn(role="assistant", content=clean_a)])
+        sys_prompt = self.systems[request.language]
+        few_shot = self._retrieve_kenyan_examples(request.message, request.language, [t.content for t in effective_history])
+        if few_shot:
+            sys_prompt = sys_prompt + "\n\n" + few_shot
+        if not effective_history:
+            sys_prompt += "\n\nIMPORTANT FOR THIS TURN: This is the participant's FIRST opening message on this issue. Do NOT suggest booking a counsellor yet—focus 100% on warm validation and asking a counsellor-style question about how long they have felt this way, how it affects their daily life, or their trust/exclusion feelings."
+        messages = [{"role": "system", "content": sys_prompt}]
+        for turn in effective_history:
             messages.append({"role": turn.role, "content": turn.content})
         messages.append({"role": "user", "content": request.message})
 
@@ -209,12 +228,7 @@ class LocalUlizaModel:
                     data = json.loads(res.read().decode())
                     reply = data["choices"][0]["message"].get("content", "").strip()
                     if reply:
-                        cleaned = clean_reply(reply)
-                        if request.history:
-                            cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
-                            cleaned = re.sub(r"\btuliza\s*ball\b[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
-                            if cleaned:
-                                cleaned = cleaned[0].upper() + cleaned[1:]
+                        cleaned = self._polish_reply(clean_reply(reply), request.language, bool(effective_history))
                         if not rejection_reason(cleaned, request.language):
                             from care.response_policy import _DANGER
                             if not _DANGER.search(request.message):
@@ -229,52 +243,155 @@ class LocalUlizaModel:
                 continue
         return None
 
+    def _retrieve_kenyan_examples(self, message: str, language: str, history_texts: list[str]) -> str:
+        """Retrieve topic-matched Kenyan counsellor examples to ground vocabulary and grammar."""
+        ex_file = ROOT / "kenyan_examples.json"
+        if not ex_file.is_file():
+            return ""
+        try:
+            bank = json.loads(ex_file.read_text(encoding="utf-8"))
+        except Exception:
+            return ""
+        combined = (" ".join(history_texts[-2:]) + " " + message).casefold()
+        matched_examples = []
+        for entry in bank:
+            if any(kw in combined for kw in entry.get("keywords", [])):
+                matched_examples.extend(entry.get("examples", {}).get(language, []))
+        if not matched_examples and bank:
+            matched_examples.extend(bank[0].get("examples", {}).get(language, [])[:1])
+        if not matched_examples:
+            return ""
+        lines = ["AUTHENTIC KENYAN COUNSELLOR REFERENCE EXAMPLES (Mirror this exact natural grammar, simplicity, and counsellor flow):"]
+        for ex in matched_examples[:2]:
+            lines.append(f"User: '{ex['user']}'")
+            lines.append(f"Assistant: '{ex['assistant']}'")
+        return "\n".join(lines)
+
+    def _polish_reply(self, cleaned: str, language: str, has_history: bool = False) -> str:
+        """Fix morphological blends (like 'kuhisik') and keep Kiswahili Sanifu free of English leak tokens."""
+        if not cleaned:
+            return cleaned
+        cleaned = cleaned.replace("\u202f", " ").replace("\u00a0", " ").replace("\u2011", "-")
+        cleaned = re.sub(r"\bkuhisik[a-z]*\b", "kuhisi", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bmkao\s+wa\s+upweke\b", "upweke", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bni\s+ghali\s+ya\s+watu\b", "ni tabia ya watu", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bkutokujua\b", "kutojua", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bkutokupata\b", "kukosa kupata", cleaned, flags=re.I)
+        cleaned = re.sub(r"\b[iu]met?impacti?\b", "imeaffect", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bumeshwa\s+na\s+kutrust\b", "umepata ugumu wa kutrust", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bwapo\s+waki\s*disappear\b", "wanapotea", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bwaki\s+disappear\b", "wanapotea", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bbila\s+kujikokota\b", "bila kujiforce", cleaned, flags=re.I)
+        cleaned = re.sub(r"[^.?!]*\b(?:kujaribu\s+hobby|hobby\s+kama|sport\s+au\s+club|join\s+a?\s*club)\b[^.?!]*\bsaidia[^.?!]*[,.?!]?\s*", "", cleaned, flags=re.I)
+        cleaned = re.sub(r"\bJe,\s*umewahi\s+kujaribu\s+hobby[^,?]*,\s*na\s+pia\s+", "Je, ", cleaned, flags=re.I)
+        if language == "Kiswahili":
+            sw_replacements = (
+                (r"\bfriends\b", "marafiki"),
+                (r"\bpressure\b", "shinikizo"),
+                (r"\bschoolwork\b", "kazi za shule"),
+                (r"\bhomework\b", "kazi ya nyumbani"),
+                (r"\bassignment\b", "kazi ya darasani"),
+                (r"\broutine\b", "ratiba"),
+                (r"\bsupport\b", "msaada"),
+                (r"\bhelp\b", "msaada"),
+                (r"\btry\b", "jaribu"),
+                (r"\btoday\b", "leo"),
+                (r"\bsometimes\b", "wakati mwingine"),
+                (r"\bplease\b", "tafadhali"),
+                (r"\bsafe\b", "salama"),
+                (r"\breply\b", "jibu"),
+                (r"\bcheck\b", "angalia"),
+                (r"\bstress\b", "msongo wa mawazo"),
+            )
+            for pattern, replacement in sw_replacements:
+                cleaned = re.sub(pattern, replacement, cleaned, flags=re.I)
+        if has_history:
+            cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
+            cleaned = re.sub(r"\btuliza\s*ball\b[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
+        if cleaned:
+            cleaned = cleaned[0].upper() + cleaned[1:]
+        return cleaned
+
     def generate(self, request):
         msg_norm = request.message.strip().casefold()
         lang = request.language
 
-        # 1. Check optional external API if configured
-        api_reply = self._query_api(request)
-        if api_reply:
-            return {"raw_response": api_reply, "token_limit_reached": False}
-
-        # 2. Check exact/fuzzy match in preserved trained outputs
+        # 1. Check exact/fuzzy match in preserved trained outputs
         for case in self.corpus:
             if case["language"].casefold() == lang.casefold() and case["prompt"] in msg_norm:
                 return {"raw_response": case["response"], "token_limit_reached": False}
 
-        # 3. Contextual conversational generation based on topic and language
-        reply = self._synthesize_response(msg_norm, lang, request.history)
-        cleaned = clean_reply(reply)
-        if request.history:
-            cleaned = re.sub(r"^(?:(?:Sis|Bro|Buda|Manze|Maze)[\s,!:\-—]+)?(?:Niaje|Sema|Vipi|Mambo|Habari|Hujambo|Hello|Hi|Hey)[\s,!:\-—]+", "", cleaned, flags=re.I).strip()
-            cleaned = re.sub(r"\btuliza\s*ball\b[\s,!:\-—]*", "", cleaned, flags=re.I).strip()
-            if cleaned:
-                cleaned = cleaned[0].upper() + cleaned[1:]
+        # 2. For Kiswahili and Sheng, prefer verified Kenyan counsellor synthesis when the message matches
+        # a known youth mental health topic so replies use 100% authentic, natural Kenyan phrasing without
+        # broken literal translations from English-centric cloud models.
+        if lang in ("Sheng", "Kiswahili"):
+            synth = self._synthesize_response(msg_norm, lang, request.history, strict_match=True)
+            if synth:
+                cleaned = self._polish_reply(clean_reply(synth), lang, bool(request.history))
+                return {"raw_response": cleaned, "token_limit_reached": False}
+
+        # 3. Query external LLM API (primary for English and for open-ended/unseen topics)
+        api_reply = self._query_api(request)
+        if api_reply:
+            return {"raw_response": api_reply, "token_limit_reached": False}
+
+        # 4. Fallback contextual conversational generation
+        reply = self._synthesize_response(msg_norm, lang, request.history, strict_match=False)
+        cleaned = self._polish_reply(clean_reply(reply), lang, bool(request.history))
         return {"raw_response": cleaned, "token_limit_reached": False}
 
-    def _synthesize_response(self, text, language, history):
+    def _synthesize_response(self, text, language, history, strict_match=False):
         prior = [turn.content.strip().casefold() for turn in history if turn.role == "assistant"]
+        prior_user = " ".join(turn.content.strip().casefold() for turn in history if turn.role == "user")
         is_multi_turn = len(history) >= 2
 
         def pick_fresh(options):
             for opt in options:
                 if not any(opt.strip().casefold() in p or p in opt.strip().casefold() for p in prior):
                     return opt
-            return options[0]
+            return options[-1]
 
+        has_no_money_counsellor = (
+            any(w in text for w in ("sina pesa", "sina dooh", "sina doh", "kulipa", "gharama", "afford", "no money", "malipo", "pesa ya counsellor", "pesa za mshauri"))
+            and any(w in text or w in prior_user for w in ("counsellor", "counselor", "mshauri", "lonely", "solo", "upweke", "stress", "overthink", "msaada"))
+        )
+        has_overthink_or_what_to_do = any(w in text for w in (
+            "overthink", "nikioverthink", "nawaza sana", "usingizi", "nalala", "kuchoka kuwa mtu wa kusaidia",
+            "nifanye nini", "nifanyeje", "what should i do", "what do i do", "nimechoka kubeba", "convenience"
+        ))
         has_siblings = any(w in text for w in ("sibling", "siblings", "ndugu", "watoto", "masibling", "take care", "care of", "chores", "duties", "baby", "dogo"))
-        has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "masomo", "kusoma", "study", "revise", "revision"))
+        has_exam = any(w in text for w in ("exam", "exams", "test", "marks", "grade", "masomo", "kusoma", "study", "revise", "revision", "mitihani", "mtihani"))
         has_no_time = any(w in text for w in ("sijakuwa na time", "sina time", "no time", "running out of time", "muda", "bado nafeel", "behind", "nyuma"))
         has_alone_duty = any(w in text for w in ("hakuna msee", "mimi pekee", "peke yangu", "solo", "madhe", "fathe", "late", "job"))
         has_pregnancy = any(w in text for w in ("pregnant", "mimba", "pregnancy", "clinic", "abort", "abortion", "kuabort", "kutoa mimba", "nimepata mimba"))
-        has_breakup = any(w in text for w in ("boyfriend", "girlfriend", "tuliachana", "tuliwachana", "breakup", "broke up", "break up", "ex", "text him", "text her", "love", "heartbroken", "mapenzi"))
-        has_fees = any(w in text for w in ("fee", "fees", "school fees", "school fee", "karo", "fukuzwa", "kufukuzwa", "pesa za shule", "kulipia"))
-        has_lonely_friends = any(w in text for w in ("friend", "friends", "beshte", "mabeshte", "lonely", "alone", "solo", "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke", "hakuna place"))
+        has_breakup = any(w in text for w in ("boyfriend", "girlfriend", "dem wangu", "chali wangu", "mpenzi", "tuliachana", "tuliwachana", "breakup", "broke up", "break up", "my ex", "text him", "text her", "kumtext", "heartbroken", "mapenzi"))
+        has_fees = any(w in text for w in ("school fees", "school fee", "karo", "fukuzwa", "kufukuzwa", "pesa za shule", "kulipia shule"))
+        has_lonely_friends = any(w in text for w in (
+            "friend", "friends", "beshte", "mabeshte", "marafiki", "rafiki", "lonely", "alone", "solo",
+            "isolated", "sina friends", "sina beshte", "tenga", "kutengwa", "upweke", "mpweke",
+            "hakuna place", "convenience", "wanadisappear", "wanapotea", "wakihitaji", "wasee hunicall"
+        ))
         has_parent_conflict = any(w in text for w in ("fighting", "fight", "kufight", "wazazi kufight", "parents fighting", "wazazi", "parents", "argue", "arguing", "zozano", "ugomvi", "makelele"))
-        has_concentration = any(w in text for w in ("concentrate", "concentration", "focus", "kushindwa kusoma", "distraction"))
+        has_concentration = any(w in text for w in ("concentrate", "concentration", "focus", "kushindwa kusoma", "distraction", "kuzingatia"))
 
-        # Pregnancy / reproductive health distress
+        # 0. Follow-up where participant worries about paying a counsellor or asks what to do next after overthinking/people-pleasing
+        if has_no_money_counsellor or (is_multi_turn and has_overthink_or_what_to_do and (has_lonely_friends or "upweke" in prior_user or "solo" in prior_user or "mabeshte" in prior_user)):
+            if language == "Sheng":
+                return pick_fresh([
+                    "Kwanza kabisa manze, usiworry kuhusu pesa—huduma zote za counsellors wa MindBridge ni za bure kabisa (100% free), hulipi chochote. Kuoverthink usiku na kuchoka kubeba kila msee ili tu ukubalike inachosha sana akili, lakini kuona hivyo ni hatua ya kwanza ya kujithamini na kuweka mipaka (boundaries). Ungependa nikuonyeshe masaa ambayo counsellor wetu wa bure ako available uongee naye?",
+                    "Pole sana kwa kukosa usingizi ukiwaza haya manze, na ujue counsellors wa MindBridge ni wa bure kabisa bila malipo yoyote. Kuchoka kutumiwa na wasee ni mwanzo wa kujilinda na kujenga boundaries zenye afya. Ungependa tupange session ya bure na counsellor wetu akusaidie kupitia hii hatua?",
+                ])
+            elif language == "Kiswahili":
+                return pick_fresh([
+                    "Kwanza kabisa, usiwe na wasiwasi kuhusu pesa—washauri wetu wa MindBridge wanatoa huduma hii bure kabisa bila malipo yoyote. Kukosa usingizi ukiwaza na kuchoka kutumiwa na wengine ni mzigo mzito, lakini kutambua hilo ni hatua muhimu ya kujithamini na kuweka mipaka. Je, ungependa nikuonyeshe muda ambao mshauri wetu wa bure anapatikana ili uzungumze naye?",
+                    "Pole sana kwa kulemewa na mawazo mengi usiku; kumbuka huduma za mshauri wa MindBridge ni za bure kabisa. Kuchoka kubeba kila mtu ili ukubalike ni mwanzo wa kuweka mipaka inayolinda amani yako. Je, ungependa nikuunganishe na mshauri wetu sasa?",
+                ])
+            else:
+                return pick_fresh([
+                    "First, please don't worry about money—speaking with a MindBridge counsellor is 100% free of charge. Lying awake overthinking and feeling exhausted from always giving just to keep people around is heavy, and recognising it is the first step toward setting healthy boundaries. Would you like me to show you the available times to talk with one of our free counsellors?",
+                ])
+
+        # 1. Pregnancy / reproductive health distress
         if has_pregnancy:
             if language == "Sheng":
                 return pick_fresh([
@@ -290,240 +407,192 @@ class LocalUlizaModel:
                     "It is completely understandable to feel overwhelmed and terrified right now. You do not have to handle this alone. Public youth-friendly health clinics offer confidential, subsidised care, and free helplines like Childline 1190 and 1195 are available 24/7. Would you like help finding a safe, confidential clinic near you?",
                 ])
 
-        # Breakup / relationship distress
+        # 2. Breakup / relationship distress
         if has_breakup:
             if language == "Sheng":
                 return pick_fresh([
-                    "Pole sana manze. Breakup huuma sana na kuleta mawazo mob. Ni kawaida kufeel sad na hata kutaka kumtext, lakini kuchukua time ya kupumua kwanza husaidia. Ungependa kueleza kilichohappen, ama unajisikiaje saa hii?",
-                    "Kuvunja relationship na msee uliyemzoea si rahisi hata kidogo. Hufai kujibeba vibaya kwa kufeel hivi. Tuko hapa kukusikiza; ungependa kushea zaidi kuhusu jinsi unavyohisi?",
-                    "Nia ya kutaka kumtext inaonyesha vile bado unajali, lakini kumbuka sababu mlivunja kwanza kabla ya kuchukua step. Chukua hatua ndogo ya kupumzisha akili leo. Ungetaka tupige story zaidi?",
+                    "Pole sana manze. Breakup na msee uliyemzoea huuma sana na kuleta mawazo mengi. Hii ilihappen muda gani uliopita, na imekuwa ikiaffect aje usingizi wako ama siku yako ya kawaida?",
+                    "Kuvunjika kwa relationship si rahisi hata kidogo na hufai kujilaumu kwa kufeel hivi. Unahisi ni kitu gani kinakuumiza zaidi saa hii, na ungependa tupige story zaidi ama nikuonyeshe masaa ya counsellor wetu wa bure?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Pole sana kwa unayopitia. Kuachana na mtu uliyempenda huleta maumivu makubwa ya moyo na hisia za kuchanganyikiwa. Ni kawaida kutaka kuwasiliana naye, lakini kujipa muda wa kutulia husaidia. Je, ungependa kunieleza zaidi kuhusu unavyojisikia?",
-                    "Kuvunjika kwa uhusiano ni jambo linaloumiza sana. Huna haja ya kupitia haya peke yako; tuko hapa kukusikiliza. Je, ungependa kushiriki zaidi kilichotokea?",
+                    "Pole sana kwa unayopitia. Kuachana na mtu uliyempenda huleta maumivu makubwa ya moyo. Je, hali hii ilitokea muda gani uliopita, na inaathiri vipi usingizi na shughuli zako za kila siku?",
+                    "Kuvunjika kwa uhusiano ni jambo linaloumiza sana moyoni. Huna haja ya kupitia haya peke yako; ungependa kunieleza kinachokuumiza zaidi au uzungumze na mshauri wetu wa bure?",
                 ])
             else:
                 return pick_fresh([
-                    "I'm really sorry you're going through a breakup. It's completely understandable to feel sad and tempted to text him back, but giving yourself space to process your feelings first can bring clarity. Would you like to share what's on your mind right now?",
-                    "Heartbreak is really painful, and wanting to reach out to an ex is a very normal reaction. Taking a pause and doing something kind for yourself today can help. How are you holding up?",
+                    "I'm really sorry you're going through a breakup. Losing someone you cared about hurts deeply. How long ago did this happen, and how has it been affecting your sleep and daily life?",
+                    "Heartbreak is really painful, and wanting to reach out is a very human reaction. What part of this feels heaviest right now, and would you like to talk with one of our free counsellors?",
                 ])
 
-        # School fees / exclusion distress
+        # 3. School fees / exclusion distress
         if has_fees:
             if language == "Sheng":
                 return pick_fresh([
-                    "Pole sana manze. Kufukuzwa shule ju ya school fees huleta stress kubwa na kufeel uko nyuma bila kosa lako. Hii si makosa yako na hufai kubeba hii stress solo. Je, kuna mzazi ama msee wa family unaweza kubonga naye kuhusu hii story?",
-                    "Inauma sana kutumwa home ju ya karo wakati unataka kusoma. Ni valid kufeel stressed kabisa. Tuko hapa kukusupport bila judgement. Ungependa kueleza zaidi vile mambo yako home saa hii?",
+                    "Pole sana manze. Kurudishwa home juu ya school fees wakati unataka kusoma huleta stress kubwa, na kumbuka hii si makosa yako hata kidogo. Hii hali imekuwa ikiaffect aje utulivu wako home na masomo yako?",
+                    "Inauma sana kukwama juu ya karo bila kosa lako. Tuko hapa kukuskiza bila judgement; kuna mtu yeyote kwa family mnaweza kubonga naye kuhusu hii hali, ama ungependa kuongea na counsellor wetu wa bure?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Pole sana kwa changamoto hii ngumu ya karo ya shule. Kufukuzwa shule huleta shinikizo kubwa na huzuni, lakini si kosa lako. Je, kuna mtu katika familia au jamaa unayeweza kuzungumza naye kuhusu msaada wa karo?",
-                    "Kusimamishwa masomo kwa sababu ya karo ni mzigo mzito sana kwa mwanafunzi. Tuko hapa kukusikiliza na kukupa nafasi salama. Ungependa kueleza zaidi?",
+                    "Pole sana kwa changamoto hii ngumu ya karo ya shule. Kusimamishwa masomo huleta shinikizo kubwa na huzuni, lakini si kosa lako hata kidogo. Je, hali hii imekuwa ikiathiri vipi utulivu wako wa akili na masomo yako?",
+                    "Kukosa karo wakati unatamani kusoma ni mzigo mzito sana kwa mwanafunzi. Je, kuna mtu katika familia unayeweza kuzungumza naye, au ungependa kuzungumza na mshauri wetu wa bure?",
                 ])
             else:
                 return pick_fresh([
-                    "I'm so sorry you're dealing with being sent home over school fees. That is an enormous stress to carry and it is not your fault. Is there a family member, teacher, or trusted adult you can speak with about options for support?",
-                    "Being excluded from school due to fees is deeply distressing when all you want to do is learn. You are not alone in this. Would you like to talk about how things are at home?",
+                    "I'm so sorry you're dealing with being sent home over school fees. That is an enormous stress to carry and none of it is your fault. How has this been affecting your mindset and daily life at home?",
                 ])
 
-        # Conflict at home / parents fighting + concentration / study
-        if has_parent_conflict and has_concentration:
+        # 4. Conflict at home / parents fighting + concentration / study
+        if has_parent_conflict and (has_concentration or has_exam):
             if language == "Sheng":
                 return pick_fresh([
-                    "Kujaribu kusoma kukiwa na makelele na mvutano wa wazazi home ni ngumu sana, na ni kawaida kabisa kukosa concentration. Unaweza jaribu kusoma mapema asubuhi kukiwa tulivu, au library/shuleni kwa muda. Ungependa tujaribu kuangalia jinsi unaweza kupanga muda wako wa study?",
-                    "Inaeleweka kabisa kushindwa kufocus wakati home kuko na fujo. Hii si kosa lako na hufai kujilaumu. Ungependa kupata nafasi salama ya kuzungumza na counsellor wetu akupatie support ya jinsi ya kuhandle hii stress?",
+                    "Kujaribu kusoma kukiwa na makelele na ugomvi wa wazazi home ni ngumu sana, na ni kawaida kabisa kukosa concentration. Hii hali imekuwa ikiendelea kwa muda gani, na inaaffect aje usingizi na utulivu wako ukiwa kwa keja?",
+                    "Inaeleweka kabisa kushindwa kufocus wakati home kuko na mvutano—na si kosa lako hata kidogo. Ungependa tuangalie njia inayoendana na ratiba yako ya home, ama nikuunganishe na counsellor wetu wa bure?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Kujaribu kuzingatia masomo wakati kuna ugomvi nyumbani ni jambo gumu sana. Ni kawaida kukosa utulivu wa kusoma. Je, ungependa kupata mwongozo wa jinsi ya kupanga ratiba yako au tuzungumze na mshauri?",
+                    "Kujaribu kuzingatia masomo wakati kuna ugomvi wa wazazi nyumbani ni jambo gumu sana, na hilo si kosa lako. Je, hali hii imedumu kwa muda gani, na inaathiri vipi usingizi na utulivu wako wa kila siku?",
+                    "Ni kawaida kukosa utulivu wa kusoma wakati nyumbani hakuna amani. Je, ungependa tujadili namna ya kupata muda tulivu wa kusoma, au uzungumze na mshauri wetu wa bure?",
                 ])
             else:
                 return pick_fresh([
-                    "Trying to study while there is fighting at home is exhausting, and it is completely normal to lose focus. It is not your fault. Would you like some tips on finding quiet study spots, or to speak with a counsellor?",
+                    "Trying to study while there is fighting at home is mentally exhausting, and it is completely normal to lose focus. How long has this tension been going on at home, and how is it affecting your sleep and daily energy?",
                 ])
 
         if has_parent_conflict:
             if language == "Sheng":
                 return pick_fresh([
-                    "Inaeleweka sana kufeel drained na stressed. Kuona wazazi wakizozana huleta tension kubwa sana home na si kosa lako hata kidogo. Je, kuna mahali tulivu unaweza kujitenga kidogo upate utulivu?",
-                    "Kuishi katika nyumba yenye vita na tension kila wakati huumiza sana moyoni. Huko peke yako katika haya. Je, ungependa kushiriki zaidi au uzungumze na counsellor wetu?",
+                    "Inaeleweka sana kufeel drained na stressed. Kuona wazazi wakizozana kila saa huleta tension kubwa sana kwa keja, na si kosa lako hata kidogo. Hii hali imekuwa ikiendelea kwa muda gani na inaaffect aje utulivu wako wa kila siku?",
+                    "Kuishi kwa nyumba yenye ugomvi kila wakati huumiza sana moyoni. Huko peke yako manze; ungependa kushiriki zaidi vile unajisikia ama kubonga na counsellor wetu wa bure?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Inaeleweka sana kulemewa na msongo wa mawazo wakati kuna ugomvi nyumbani. Hilo si kosa lako hata kidogo. Je, kuna mahali salama na tulivu unakoweza kupumzisha akili yako?",
+                    "Inaeleweka sana kulemewa na msongo wa mawazo wakati kuna ugomvi nyumbani, na hilo si kosa lako hata kidogo. Je, hali hii imekuwa ikiendelea kwa muda gani na inaathiri vipi amani yako ya kila siku?",
                 ])
             else:
                 return pick_fresh([
-                    "Living with ongoing conflict between parents is deeply stressful and exhausting, and it is not your fault. Is there a quiet, safe place where you can step away to find some peace?",
+                    "Living with ongoing conflict between parents is deeply stressful and exhausting, and none of it is your fault. How long has this been happening, and how is it affecting your peace of mind day to day?",
                 ])
 
-        # Social isolation / loneliness / no friends (prioritized over general school)
+        # 5. Social isolation / loneliness / convenience friends (Counsellor-style progression)
         if has_lonely_friends:
             if language == "Sheng":
+                if is_multi_turn:
+                    return pick_fresh([
+                        "Kuumizwa mara kwa mara na wasee uliowachukulia kama mabeshte kunafanya mtu ajifungie ndani na kuogopa kuamini msee yeyote tena. Kumbuka counsellors wa MindBridge ni wa bure kabisa—ungependa nikuonyeshe masaa ambayo counsellor wetu ako available uongee naye?",
+                        "Inachosha sana roho kuona uko hapo tu kwa ajili ya kuwasaidia wengine bila kupata upendo wa ukweli. Kuweka mipaka (boundaries) si ubinafsi; ungependa tupange session ya bure na counsellor wetu akusaidie kupitia hii hali?",
+                    ])
                 return pick_fresh([
-                    "Pole sana manze. Kuwa bila mabeshte shuleni kunaweza kufanya life iwe ngumu na yenye upweke mwingi. Hufai kupitia hii sadness solo; tuko hapa kubonga na wewe. Ni nini hua inahappen ukijaribu kuongea na wengine kwa class, ama ungetaka tupige story zaidi?",
-                    "Inauma sana kufeel uko peke yako shuleni wakati wengine wako na mabeshte zao. Sadness yako ni valid kabisa. Tuko hapa kukusikiza kila time; ungependa kueleza zaidi ama ungependa nikuunganishe na counsellor wetu akupatie support?",
-                    "Kufeel isolated ama kutengwa na wasee huuma sana. Hufai kubeba hii story peke yako mtaani. Ungependa tupige story zaidi ama nikuunganishe na counsellor wetu?",
+                    "Pole sana manze, na kwanza kabisa—shida si wewe hata kidogo. Inauma sana kuona wasee wanakutafuta tu ukiwa na pesa ama wakihitaji msaada wako halafu wanapotea ukikosa. Umekuwa ukipitia huu upweke kwa muda gani sasa, na je inaaffect aje usingizi wako, siku yako ya kawaida, ama uwezo wako wa kuamini (kutrust) watu tena?",
+                    "Inauma sana kufeel uko solo na kutumiwa na wasee kwa convenience yao pekee—lakini ujue hilo halina maana kuna shida na wewe. Hii hali imekuwa ikiendelea kwa muda gani, na unahisi ni kama umetengwa ama imekuwa ngumu kutrust msee yeyote baada ya kuangushwa mara mob?",
                 ])
             elif language == "Kiswahili":
+                if is_multi_turn:
+                    return pick_fresh([
+                        "Kuumizwa mara kwa mara na watu uliowaamini huleta uzito mkubwa na hofu ya kuwaamini wengine tena. Kumbuka washauri wa MindBridge wanatoa huduma bure kabisa—je, ungependa nikuonyeshe muda ambao mshauri wetu anapatikana?",
+                    ])
                 return pick_fresh([
-                    "Pole sana kwa unachopitia. Kuhisi huna marafiki shuleni kunaweza kuleta huzuni na upweke mwingi sana. Huko peke yako; tuko hapa kuzungumza nawe. Je, ungependa kunieleza zaidi kuhusu unavyojisikia au nikuunganishe na mshauri wetu?",
-                    "Kuhisi kutengwa au upweke ni jambo linaloumiza sana moyoni. Kuna watu wanaokujali na unaweza kuzungumza na mtu unayemwamini. Ungependa nikuunganishe na mshauri wetu?",
+                    "Pole sana kwa unachopitia, na kwanza kabisa ujue tatizo si wewe hata kidogo. Inaumiza sana kuona watu wanakutafuta tu wanapohitaji msaada wako kisha wanapotea. Je, umekuwa ukihisi upweke huu kwa muda gani, na hali hii inaathiri vipi maisha yako ya kila siku au imani yako kwa watu?",
+                    "Kuhisi kutengwa au kukosa marafiki wa kweli ni jambo linaloumiza sana moyoni, lakini si kosa lako. Je, hali hii imedumu kwa muda gani, na unahisi imekuwa vigumu kuwaamini watu tena baada ya kukatishwa tamaa mara kwa mara?",
                 ])
             else:
+                if is_multi_turn:
+                    return pick_fresh([
+                        "Being repeatedly let down by people you cared about makes it hard to trust anyone again. Remember that MindBridge counsellors are completely free—would you like me to show you the available appointment times?",
+                    ])
                 return pick_fresh([
-                    "I'm really sorry you're going through that. Feeling like you have no friends at school can make every day feel so lonely and heavy. You don't have to carry this sadness by yourself. Would you like to talk through what's been happening, or connect with our counsellor?",
-                    "It can hurt deeply to feel isolated at school while everyone else has friends. Your sadness is completely understandable. Would you like to share what feels most difficult about school right now, or speak with a counsellor?",
+                    "I'm really sorry you're carrying this, and please know the problem is not you—being used for convenience and left out when you have nothing to give hurts deeply. How long have you been feeling this loneliness, and how is it affecting your daily life or your ability to trust people?",
                 ])
 
-        # Family responsibility + exam conflict
+        # 6. Family responsibility + exam conflict
         if has_siblings and (has_exam or has_no_time):
             if language == "Sheng":
                 return pick_fresh([
-                    "Kubalance kulea masiblings na kurevise for exams ni pressure mzito sana. Inaonyesha vile unajali family yako, lakini pia unahitaji time ya kusoma. Je, kuna msee home ama jirani unaweza request awashike kwa masaa machache upate time ya kurevise?",
-                    "Kusoma ukiwa na majukumu ya kutunza siblings si rahisi hata kidogo. Hufai kubeba hii stress pekee yako. Unaweza chagua hata dakika thelathini za kusoma mapema kabla wengine waamke, ama ungetaka uchat na counsellor wetu akusaidie kupata balance?",
+                    "Kubalance kulea masiblings na kurevise for exams ni mzigo mzito sana. Inaonyesha vile unajali family yako, lakini pia unahitaji nafasi ya kupumua na kusoma. Hii hali imekuwa ikiaffect aje usingizi na nguvu zako za kila siku?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Kutunza ndugu zako wadogo huku ukijiandaa kwa mitihani ni mzigo mkubwa sana. Ni wazi kuwa unaipenda familia yako, lakini masomo yako pia ni muhimu. Je, kuna mtu wa karibu anayeweza kukusaidia kwa masaa machache ili upate nafasi ya kusoma?",
-                    "Kulea wadogo huku mitihani ikikaribia huleta shinikizo kubwa. Ungependa kupanga muda mfupi asubuhi wa kusoma, au tuzungumze na mshauri anayeweza kukusaidia kupanga ratiba yako?",
+                    "Kutunza ndugu zako wadogo huku ukijiandaa kwa mitihani ni mzigo mkubwa sana. Inaonyesha upendo wako kwa familia, lakini pia unahitaji muda wa kupumzika na kusoma. Je, hali hii imekuwa ikiathiri vipi usingizi na nguvu zako za kila siku?",
                 ])
             else:
                 return pick_fresh([
-                    "Balancing caring for your siblings with studying for exams is an enormous load to carry. It shows how responsible and caring you are, but your own revision matters too. Is there a relative or trusted neighbour who could watch them for a few hours so you can focus?",
-                    "Caring for younger siblings while preparing for exams is exhausting. You don't have to carry this completely on your own. Would you like some practical tips on managing your time, or to connect with our counsellor?",
+                    "Balancing caring for your siblings with studying for exams is an enormous load to carry. How long have you been juggling all of this on your own, and how is it affecting your sleep and energy?",
                 ])
 
-        # Sole caretaker with no support at home
+        # 7. Sole caretaker with no support at home
         if has_alone_duty and is_multi_turn:
             if language == "Sheng":
                 return pick_fresh([
-                    "Kuwa the only person anayetegemewa home wakati exams zinakaribia ni mzigo mkubwa sana. Hufai kubeba hii stress yote peke yako bila support. Unaweza jaribu kuweka hata dakika thelathini za kusoma mapema. Ungependa nikuunganishe na counsellor wetu wa MindBridge akusaidie kuweka balance?",
-                    "Inaeleweka kufeel stretched wakati hakuna msee wa kukushika mkono home. MindBridge tuko hapa kukusupport. Ungependa tuzungumze na counsellor wetu akusaidie kuplan time na kupunguza hii pressure?",
+                    "Kuwa mtu pekee anayetegemewa home wakati exams zinakaribia ni mzigo mkubwa sana manze. Hufai kubeba hii stress yote peke yako. Ungependa nikuonyeshe masaa ya counsellor wetu wa bure wa MindBridge uongee naye?",
                 ])
             elif language == "Kiswahili":
                 return pick_fresh([
-                    "Kuwa mtu pekee anayetegemewa nyumbani wakati mitihani inakaribia ni jambo gumu sana. Hupaswi kubeba mzigo huu mzito peke yako. Je, ungependa kuzungumza na mshauri wetu wa MindBridge akusaidie kupanga muda na kupata utulivu?",
+                    "Kuwa mtu pekee anayetegemewa nyumbani wakati mitihani inakaribia ni jambo gumu sana. Hupaswi kubeba mzigo huu mzito peke yako. Je, ungependa kuzungumza na mshauri wetu wa bure wa MindBridge?",
                 ])
             else:
                 return pick_fresh([
-                    "Being the only person relied upon at home while trying to study is an immense weight. You deserve support through this difficult period. Would you like to connect with our counsellor who can help you find balance?",
+                    "Being the only person relied upon at home while trying to study is an immense weight. Would you like to connect with one of our free MindBridge counsellors for support?",
                 ])
 
-        # Time crunch / timetable struggle
-        if has_no_time and has_exam:
-            if language == "Sheng":
-                return pick_fresh([
-                    "Wakati time inasonga na unahisi uko nyuma, inaeleweka kufeel panic. Hata kuweka dakika ishirini pekee leo za kurevise topic moja ndogo ni step kubwa. Ungependa tuangalie ratiba inayowezekana, ama tuongee na counsellor akusaidie kupanga time?",
-                    "Unaweza pia reset goal yako. Sometimes exam ikawa harder kuliko actual revision. Anza na topic moja ndogo ya kurevise leo halafu uchukue mapumziko mafupi.",
-                ])
-            elif language == "Kiswahili":
-                return pick_fresh([
-                    "Wakati muda unazidi kuyoyoma na unahisi uko nyuma, ni kawaida kuwa na hofu. Hata dakika chache za kusoma mada moja ndogo leo zinaweza kuleta nafuu. Ungependa tupange mpango rahisi au uongee na mshauri wetu?",
-                ])
-            else:
-                return pick_fresh([
-                    "When time feels short and exams are approaching, it is completely natural to feel panicky. Even focusing on one small 20-minute section today can make a difference. Would you like to break it down, or speak with a counsellor about managing this pressure?",
-                ])
-
-        # Marks not improving
-        if any(w in text for w in ("marks", "hazichange", "improve", "improving", "fail", "grades")):
-            if language == "Sheng":
-                return pick_fresh([
-                    "Usifikirie entire exam kwa time moja. Play each question separate halafu uchague topic moja ndogo ya kurevise leo. Ungependa tuongee zaidi ama uchat na counsellor wetu?",
-                    "Kusoma kwa bidii bila kuona matokeo huleta frustration mob. Pengine unahitaji kubadili style ya study badala ya kuongeza hours. Ungependa tuangalie mbinu tofauti?",
-                ])
-            elif language == "Kiswahili":
-                return pick_fresh([
-                    "Inaeleweka kulemewa na masomo wakati matokeo hayabadiliki. Anza na kile unachoweza kushughulikia leo badala ya kila kitu kwa mara moja. Ungependa kuzungumza zaidi au kuunganishwa na mshauri wetu?",
-                ])
-            else:
-                return pick_fresh([
-                    "Maybe you need to identify what kind of study works best for you and what routine helps you focus. Taking it one subject at a time can ease the pressure. Would you like to talk more, or speak with a counsellor?",
-                ])
-
-        # General school stress / presentation
+        # 8. General school stress / presentation / marks
         if any(w in text for w in ("mark", "exam", "grade", "school", "shule", "masomo", "class", "darasani", "homework", "presentation", "marks", "test", "stressed")):
             if language == "Sheng":
                 if any(w in text for w in ("presentation", "kuongea", "class")):
-                    return pick_fresh([
-                        "Kuongea mbele ya watu huleta pressure mob. Unaweza try kupumua polepole ama upractice na beshte mmoja kwanza. Ungependa tuongee zaidi ama uchat na counsellor?",
-                    ])
+                    return "Pole sana manze, kuongea mbele ya class huleta wasiwasi na pressure kwa wasee wengi sana. Umekuwa ukihisi huu wasiwasi kwa muda gani, na ni sehemu gani ya kuongea mbele ya watu inakupa tension zaidi?"
                 if is_multi_turn:
-                    return pick_fresh([
-                        "Kuanza na step moja ndogo husaidia kupunguza pressure shuleni. Tuko hapa kukusupport kwa kila hatua. Ungetaka tupige story zaidi ama uongee na counsellor wetu akusaidie?",
-                        "Ni valid kabisa kufeel overwhelmed na school work. Unaweza panga kupumzika kidogo kabla uendelee. Ungependa kuongea na counsellor?",
-                    ])
-                return pick_fresh([
-                    "Pole sana kwa hiyo stress yote unayopitia shuleni. Ni valid kabisa kufeel overwhelmed wakati workload ni mob. Ni kitu gani specifically inakuletea pressure zaidi kwa masomo saa hii?",
-                    "Kusoma na kushughulikia maisha ya shule kunaweza kuwa na pressure mingi sana. Tuko hapa kukusikiza bila judge. Ungependa kueleza zaidi kilicho kigumu?",
-                ])
+                    return "Kusoma kwa bidii huku ukipitia pressure kubwa kunachosha sana akili. Kumbuka counsellors wetu wa MindBridge ni wa bure kabisa—ungependa nikuonyeshe masaa yaliyopo uongee na counsellor?"
+                return "Pole sana kwa hiyo stress yote unayopitia kwa masomo manze. Umekuwa ukihisi huu uzito kwa muda gani sasa, na unaathiri aje usingizi wako ama psyche yako ya kila siku?"
             elif language == "Kiswahili":
-                if any(w in text for w in ("darasa", "kuzungumza", "ongea")):
-                    return pick_fresh([
-                        "Inaeleweka kuwa na wasiwasi unapozungumza mbele ya wengine. Unaweza kujaribu kufanya mazoezi na mtu unayemwamini kabla ya kuingia darasani. Ungependa kuzungumza zaidi kuhusu hili?",
-                    ])
+                if any(w in text for w in ("darasa", "darasani", "kuzungumza", "ongea")):
+                    return "Pole sana, ni jambo la kawaida kabisa kuhisi wasiwasi kabla ya kuzungumza mbele ya darasa. Je, wasiwasi huu umeanza lini, na ni jambo gani hasa linalokupa hofu unapokuwa mbele ya wengine?"
                 if is_multi_turn:
-                    return pick_fresh([
-                        "Kuchukua hatua moja ndogo kwa wakati kunaweza kukupa nafuu shuleni. Huna haja ya kubeba mzigo huu peke yako. Je, ungependa tuendelee kuzungumza au nikuunganishe na mshauri wetu?",
-                    ])
-                return pick_fresh([
-                    "Pole sana kwa msongo wa mawazo unaopitia shuleni. Ni jambo la kawaida kulemewa wakati majukumu ni mengi. Ni jambo gani hasa linalokupa shinikizo kubwa zaidi kwa sasa?",
-                ])
+                    return "Kuchukua hatua moja ndogo kwa wakati kunaweza kukupa nafuu katika masomo. Kumbuka washauri wetu wa MindBridge ni wa bure kabisa—je, ungependa nikuunganishe na mshauri wetu?"
+                return "Pole sana kwa msongo wa mawazo unaopitia shuleni. Je, umekuwa ukihisi uzito huu kwa muda gani, na unaathiri vipi usingizi na nguvu zako za kila siku?"
             else:
                 if any(w in text for w in ("presentation", "talk", "speak")):
-                    return pick_fresh([
-                        "Speaking in front of others can feel really overwhelming. You could try taking slow deep breaths or practicing with one person you trust beforehand. What part feels most stressful to you?",
-                    ])
+                    return "Speaking in front of a class can bring up a lot of anxiety. How long has this presentation been weighing on your mind, and what part of it feels most stressful to you?"
                 if is_multi_turn:
-                    return pick_fresh([
-                        "Taking it one small step at a time can help give you some breathing room. You don't have to carry this all on your own. Would you like to keep talking, or speak with a counsellor?",
-                    ])
-                return pick_fresh([
-                    "I hear how stressed you are feeling about school right now. Juggling classes and expectations can feel very heavy. What part of school is bringing you the most pressure right now?",
-                ])
+                    return "Carrying that academic pressure day after day is exhausting. Would you like to talk through a manageable plan together, or speak with one of our free MindBridge counsellors?"
+                return "I hear how stressed and exhausted you are feeling about school right now. How long have you been carrying this pressure, and how is it affecting your sleep and daily energy?"
 
-        # Low mood / hopeless / giving up / exhausted
+        # 9. Low mood / hopeless / giving up / exhausted
         if any(w in text for w in ("hopeless", "give up", "giving up", "ngumu", "life", "maisha", "tired", "choka", "nimechoka", "heavy", "exhausted", "kushindwa")):
             if language == "Sheng":
-                return "Inaeleweka kufeel hivyo unapopitia time ngumu. Hufai kupitia hii pressure solo; kuna watu wanajali na tuko hapa kuskiza. Ungetaka nikuunganishe na counsellor wetu sasa?"
+                if is_multi_turn:
+                    return "Kuchoka roho na akili kwa muda mrefu ni mzigo mzito kubeba peke yako manze. Counsellors wetu wa MindBridge ni wa bure kabisa—ungependa nikuonyeshe masaa yaliyopo uongee na mmoja wao?"
+                return "Pole sana manze, inaeleweka kufeel umechoka wakati mambo mengi yanakulemea kwa wakati mmoja. Umekuwa ukihisi huu uzito kwa muda gani sasa, na inaaffect aje usingizi ama siku yako ya kawaida?"
             elif language == "Kiswahili":
-                return "Ninajua jinsi unavyojisikia umechoka na kulemewa na mambo haya. Huko peke yako, na hisia zako zina uzito mkubwa kwetu. Je, ungependa kuzungumza na mshauri anayeweza kukusaidia?"
+                if is_multi_turn:
+                    return "Kulemewa na mawazo kwa muda mrefu ni mzigo mzito kubeba peke yako. Washauri wetu wa MindBridge wanapatikana bure kabisa—ungependa nikuonyeshe muda uliopo wa kuzungumza na mshauri?"
+                return "Pole sana, ninajua jinsi inavyochosha akili na moyo unapolemewa na mambo mengi. Je, umekuwa ukihisi uzito huu kwa muda gani, na unaathiri vipi usingizi na maisha yako ya kila siku?"
             else:
-                return "I hear how exhausted and overwhelmed you are feeling right now. When everything feels heavy, taking things one small step at a time can give you some breathing room. Would you like to talk through it, or connect with a counsellor for support?"
+                return "I hear how exhausted and overwhelmed you are feeling right now. How long have you been carrying this heavy feeling, and how is it affecting your sleep and day-to-day life?"
 
-        # Future / career confusion
+        # 10. Future / career confusion
         if any(w in text for w in ("career", "future", "ahead", "mbele", "job", "kazi", "hustle")):
             if language == "Sheng":
-                return "Ni kawaida kufeel confused kuhusu future wakati wasee wengine wanaonekana mbele. Anza na kitu kimoja unaenjoy ama unaweza do leo. Ungependa advice ama counsellor akushow options?"
+                return "Ni kawaida kufeel pressure kuhusu future na hustle wakati unaona kama wengine wako mbele. Umekuwa ukiwaza kuhusu hii hali kwa muda gani, na inaaffect aje mood na siku yako ya kawaida?"
             elif language == "Kiswahili":
-                return "Ni kawaida kuwa na wasiwasi kuhusu siku zijazo wakati wengine wanaonekana wako mbele. Zingatia hatua moja ndogo unayoweza kuchukua sasa hivi. Ungependa kupata ushauri zaidi?"
+                return "Ni kawaida kuwa na wasiwasi kuhusu maisha ya baadaye na kazi. Je, umekuwa na mawazo haya kwa muda gani, na yanaathiri vipi utulivu wako wa kila siku?"
             else:
-                return "It is normal to feel uncertain about the future when others seem ahead. You don't have to have everything figured out right now. Would you like to discuss what interests you, or connect with a counsellor?"
+                return "It is very normal to feel anxious about the future when it seems like others are ahead. How long has this worry been weighing on you, and how is it affecting your daily peace of mind?"
 
-        # Social / loneliness / friends / family
-        if any(w in text for w in ("lonely", "alone", "solo", "isolated", "friend", "friends", "beshte", "home", "family", "wazazi", "tenga")):
-            if language == "Sheng":
-                return "Kufeel isolated ama kutengwa na wasee huuma sana. Hufai kubeba hii story peke yako mtaani. Ungependa tupige story zaidi ama nikuunganishe na counsellor wetu?"
-            elif language == "Kiswahili":
-                return "Kuhisi kutengwa au upweke ni jambo linaloumiza sana moyoni. Kuna watu wanaokujali na unaweza kuzungumza na mtu unayemwamini. Ungependa nikuunganishe na mshauri wetu?"
-            else:
-                return "Feeling isolated or disconnected from people can hurt deeply. You don't have to carry this alone, and your feelings are completely valid. Would you like to explore what happened, or talk to our counsellor?"
+        if strict_match:
+            return None
 
-        # General emotional disclosure / confiding
+        # General emotional disclosure / confiding fallback
         if language == "Sheng":
             if is_multi_turn:
-                return "Kuanza na step moja ndogo husaidia kupunguza pressure. Tuko hapa kukusupport kwa kila hatua. Ungetaka tupige story zaidi ama uongee na counsellor wetu?"
-            return "Asante kwa kushare hii story na mimi. Ni valid kabisa kufeel vile unafeel unapopitia stress. Ungetaka kuexplore zaidi ama unataka usaidizi wa counsellor wetu?"
+                return "Asante kwa kuendelea kufunguka manze; tuko hapa kukuskiza bila judgement na huduma zetu ni za bure kabisa. Ungependa nikuonyeshe masaa ambayo counsellor wetu wa MindBridge ako available uongee naye?"
+            return "Asante kwa kushare hii story na mimi manze. Umekuwa ukipitia hii hali kwa muda gani sasa, na inaaffect aje siku yako ya kawaida?"
         elif language == "Kiswahili":
             if is_multi_turn:
-                return "Kuanza upya kwa hatua ndogo kunaweza kukupa utulivu. Chagua jambo moja dogo unaloweza kufanya leo. Ungependa kujadili zaidi au kuongea na mshauri?"
-            return "Asante kwa kunieleza kuhusu hali yako. Ni muhimu kuzungumza unapohisi uzito huo moyoni. Ungependa nikuunganishe na mshauri wetu wa MindBridge?"
+                return "Asante kwa kuendelea kushiriki nami; kumbuka washauri wetu wa MindBridge wanatoa msaada bure kabisa. Je, ungependa nikuonyeshe muda ambao mshauri wetu anapatikana?"
+            return "Asante kwa kunieleza kuhusu hali yako. Je, umekuwa ukipitia hali hii kwa muda gani, na inaathiri vipi maisha yako ya kila siku?"
         else:
             if is_multi_turn:
-                return "Taking it one small step at a time can help give you some clarity. You don't have to resolve everything today. Would you like to keep talking, or speak with a counsellor?"
-            return "Thank you for sharing that with me. It sounds like you are carrying a lot on your shoulders right now. What would feel most supportive for you today?"
+                return "Thank you for continuing to share what you are going through. Would you like to keep talking through this, or see the available times for a free MindBridge counsellor?"
+            return "Thank you for sharing that with me. How long have you been feeling this way, and how has it been affecting your day-to-day life?"
 
 
 def create_app(engine=None, token=None):

@@ -44,6 +44,31 @@ def send_turn_payload(payload):
         return result.get("messages", [{}])[0].get("id", "")
 
 
+def send_green_api_message(chat_id, message_text):
+    """Send WhatsApp message via GREEN-API REST endpoint."""
+    instance_id = getattr(settings, "GREEN_API_INSTANCE_ID", "")
+    api_token = getattr(settings, "GREEN_API_TOKEN_INSTANCE", "")
+    host = getattr(settings, "GREEN_API_HOST", "https://api.green-api.com").rstrip("/")
+    if not instance_id or not api_token:
+        return None
+
+    chat_id = str(chat_id).strip()
+    if "@" not in chat_id:
+        chat_id = f"{chat_id}@c.us"
+
+    url = f"{host}/waInstance{instance_id}/sendMessage/{api_token}"
+    payload = json.dumps({"chatId": chat_id, "message": message_text}).encode("utf-8")
+    req = Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json", "User-Agent": "MindBridge/1.0"},
+        method="POST"
+    )
+    with urlopen(req, timeout=10) as response:
+        result = json.load(response)
+        return result.get("idMessage") or "sent"
+
+
 def text_payload(wa_id, body, buttons=()):
     if buttons:
         return {"to": wa_id, "type": "interactive", "interactive": {
@@ -170,27 +195,64 @@ def deliver_due(limit=50):
                     item.status = "cancelled"
                     item.save(update_fields=["status"])
                     continue
-            if not settings.TURN_API_TOKEN:
-                continue
-            try:
-                provider_id = send_turn_payload(item.payload)
-                if not provider_id:
-                    raise ValueError("Turn did not return a message ID")
-            except (OSError, ValueError, RuntimeError) as error:
+            if settings.TURN_API_TOKEN:
+                try:
+                    provider_id = send_turn_payload(item.payload)
+                    if not provider_id:
+                        raise ValueError("Turn did not return a message ID")
+                except (OSError, ValueError, RuntimeError) as error:
+                    item.attempts += 1
+                    item.last_error = type(error).__name__
+                    item.status = "failed" if item.attempts >= 5 else "pending"
+                    item.next_attempt_at = timezone.now() + timedelta(minutes=min(60, 2 ** item.attempts))
+                    item.save(update_fields=["attempts", "last_error", "status", "next_attempt_at"])
+                    continue
+                item.status = "sent"
+                item.sent_at = timezone.now()
+                item.provider_message_id = provider_id
                 item.attempts += 1
-                item.last_error = type(error).__name__
-                item.status = "failed" if item.attempts >= 5 else "pending"
-                item.next_attempt_at = timezone.now() + timedelta(minutes=min(60, 2 ** item.attempts))
-                item.save(update_fields=["attempts", "last_error", "status", "next_attempt_at"])
+                item.save(update_fields=["status", "sent_at", "provider_message_id", "attempts"])
+                if item.inbound_id:
+                    InboundMessage.objects.filter(pk=item.inbound_id).update(delivered=True)
+                count += 1
+            elif getattr(settings, "GREEN_API_INSTANCE_ID", "") and getattr(settings, "GREEN_API_TOKEN_INSTANCE", ""):
+                try:
+                    to_wa = item.payload.get("to")
+                    text_body = ""
+                    if "text" in item.payload and isinstance(item.payload["text"], dict):
+                        text_body = item.payload["text"].get("body", "")
+                    elif "interactive" in item.payload:
+                        text_body = item.payload["interactive"].get("body", {}).get("text", "")
+                        btns = item.payload["interactive"].get("action", {}).get("buttons", [])
+                        if btns:
+                            btn_lines = [f"- {b.get('reply', {}).get('title', '')}" for b in btns if b.get('reply', {}).get('title')]
+                            if btn_lines:
+                                text_body = f"{text_body}\n\n" + "\n".join(btn_lines)
+                    elif "template" in item.payload:
+                        text_body = f"[MindBridge Notice]: {item.payload['template'].get('name', 'Notification')}"
+
+                    if not to_wa or not text_body:
+                        continue
+                    provider_id = send_green_api_message(to_wa, text_body)
+                    if not provider_id:
+                        raise ValueError("Green API did not return a message ID")
+                except (OSError, ValueError, RuntimeError) as error:
+                    item.attempts += 1
+                    item.last_error = type(error).__name__
+                    item.status = "failed" if item.attempts >= 5 else "pending"
+                    item.next_attempt_at = timezone.now() + timedelta(minutes=min(60, 2 ** item.attempts))
+                    item.save(update_fields=["attempts", "last_error", "status", "next_attempt_at"])
+                    continue
+                item.status = "sent"
+                item.sent_at = timezone.now()
+                item.provider_message_id = provider_id
+                item.attempts += 1
+                item.save(update_fields=["status", "sent_at", "provider_message_id", "attempts"])
+                if item.inbound_id:
+                    InboundMessage.objects.filter(pk=item.inbound_id).update(delivered=True)
+                count += 1
+            else:
                 continue
-            item.status = "sent"
-            item.sent_at = timezone.now()
-            item.provider_message_id = provider_id
-            item.attempts += 1
-            item.save(update_fields=["status", "sent_at", "provider_message_id", "attempts"])
-            if item.inbound_id:
-                InboundMessage.objects.filter(pk=item.inbound_id).update(delivered=True)
-            count += 1
     return count
 
 
@@ -231,6 +293,33 @@ def run_weekly_checkins(today=None):
 def risk_signals(participant, text=""):
     from .risk import assess
     return assess(participant, text)
+
+
+def _wants_counsellor_booking(participant, command_text, raw_text):
+    """Detect explicit or conversational requests to book/speak with a counsellor."""
+    cmd = (command_text or "").strip().casefold()
+    if cmd in ("counsellor", "counselor", "talk to a counsellor", "talk to counsellor", "session", "book counsellor", "mshauri"):
+        return True
+    val = normalise(raw_text or "")
+    # Do not trigger booking slots when someone is expressing worry about not having money to pay a counsellor
+    if re.search(r"\b(?:sina\s+pesa|no\s+money|can't\s+afford|cannot\s+afford|kulipa|pay)\b", val):
+        return False
+    if re.search(
+        r"\b(?:book|schedule|niunganishe|nikuunganishe|unganisha|nataka\s+(?:kuongea|kuzungumza|kubonga)\s+na|"
+        r"ningependa\s+(?:kuongea|kuzungumza)\s+na|want\s+to\s+(?:talk|speak|book|see)|"
+        r"can\s+i\s+(?:talk|speak|book|see)|nipee|naomba)\b.{0,30}\b(?:counsellor|counselor|mshauri|session|appointment)\b",
+        val,
+    ):
+        return True
+    # Also check if the immediately preceding assistant message offered a counsellor session and the user said Yes/Sawa/Ndio
+    if len(val.split()) <= 7 and re.match(
+        r"^(?:yes|yeah|yep|ndio|ndiyo|sawa|eeh|eh|sure|okay|ok|please|tafadhali|nataka|ningependa|tuongee|tupange|haya)\b",
+        val,
+    ):
+        last_msg = participant.inbound_messages.exclude(reply="").order_by("-received_at").first()
+        if last_msg and re.search(r"\b(?:counsellor|counselor|mshauri|session)\b", last_msg.reply or "", re.I):
+            return True
+    return False
 
 
 def extract_mood_score(command_text, raw_text):
@@ -393,9 +482,9 @@ def process_message(participant, body, external_id):
             else:
                 participant.flow_state = "nickname"
                 reply = "Let's finish your profile. What nickname should we use?"
-        elif command in ("counsellor", "talk to a counsellor", "talk to counsellor", "session"):
+        elif _wants_counsellor_booking(participant, command, text):
             reply = slot_prompt(participant)
-            buttons = (("checkin", "Check in"), ("pause", "Pause"))
+            buttons = () if participant.flow_state == "booking" else (("checkin", "Check in"), ("pause", "Pause"))
         elif command in ("check in", "check in again", "check-in", "mood"):
             participant.flow_state = "mood"
             reply = WELCOME
@@ -423,7 +512,7 @@ def process_message(participant, body, external_id):
                 )
                 reply = AFTER_MOOD
                 analyse = True
-                buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
+                buttons = ()
             else:
                 chosen = area_map.get(command, text.strip()[:80] or "Other")
                 participant.area = chosen
@@ -456,7 +545,7 @@ def process_message(participant, body, external_id):
             )
             reply = AFTER_MOOD
             analyse = True
-            buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
+            buttons = ()
         else:
             # Free text remains conversational beyond the first note.
             latest = participant.moods.order_by("-recorded_at").first()
@@ -492,7 +581,12 @@ def process_message(participant, body, external_id):
                 reply = generated_reply or scripted_reply("fallback", response_language)
                 reply_source = getattr(generated_reply, "source",
                     "unknown_model_source" if generated_reply else "scripted_fallback")
-            buttons = (("request_session", "Counsellor"), ("checkin", "Check in again"))
+            # Context-sensitive buttons: keep normal conversation human-like without repetitive menu footers.
+            # Only show the Counsellor action button if there is an active risk signal or the assistant is explicitly offering a counsellor hand-off after initial exploration.
+            if early_signal or (len(history) >= 1 and re.search(r"\b(?:counsellor|counselor|mshauri)\b", reply, re.I)):
+                buttons = (("request_session", "Counsellor"),)
+            else:
+                buttons = ()
         participant.save()
         if (participant.consented and participant.onboarding_complete and not analyse
             and command not in ("i agree", "yes, i agree", "i understand", "privacy", "my data", "counsellor",

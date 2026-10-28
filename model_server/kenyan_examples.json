@@ -1,0 +1,110 @@
+[
+  {
+    "topic": "loneliness_fake_friends",
+    "keywords": ["solo", "lonely", "upweke", "mpweke", "mabeshte", "marafiki", "friends", "convenience", "wanadisappear", "wakihitaji", "shida ni mimi", "tatizo ni mimi", "nobody cares", "kutengwa", "excluded"],
+    "examples": {
+      "Sheng": [
+        {
+          "user": "Nimejaribu kuhang out na wasee before but huwa nafeel kama niko tu hapo for convenience. Nikikosa pesa ama nikikataa kuwasaidia, wanadisappear. Maybe mimi ndio niko na shida?",
+          "assistant": "Pole sana manze, na kwanza kabisa—shida si wewe hata kidogo. Inauma sana kuona wasee wanakutafuta tu ukiwa na pesa ama wakihitaji msaada wako halafu wanapotea ukikosa. Umekuwa ukipitia hii hali kwa muda gani sasa, na je imefanya ikuwe ngumu kwako kuamini msee yeyote mpya?"
+        },
+        {
+          "user": "Imeaffect sana. Sometimes nalala nikioverthink hizi vitu. Na sina pesa ya kulipa counsellor saa hii. Sitaki kuendelea kuwa lonely but pia nimechoka kuwa mtu wa kusaidia kila mtu ndio waniweke kwa maisha yao. Nifanye nini sasa?",
+          "assistant": "Kwanza kabisa manze, usiworry kuhusu pesa—huduma zote za counsellors wa MindBridge ni za bure kabisa (100% free), hulipi chochote. Kuchoka kubeba kila mtu ili tu ukubalike ni hatua ya kwanza ya kujithamini na kuweka mipaka (boundaries). Ungependa nikuonyeshe masaa ambayo counsellor wetu wa bure ako available uongee naye?"
+        }
+      ],
+      "Kiswahili": [
+        {
+          "user": "Nimejaribu kukaa na marafiki lakini nahisi wananitumia tu ninapokuwa na pesa. Nikikosa kitu cha kuwapa wanapotea. Je, tatizo ni mimi?",
+          "assistant": "Pole sana, na kwanza kabisa ujue tatizo si wewe hata kidogo. Inaumiza sana moyoni kuona watu wanakutafuta tu wanapohitaji msaada wako kisha wanajitenga nawe. Je, umekuwa ukipitia hali hii kwa muda gani, na imeathiri vipi uwezo wako wa kuwaamini watu wengine?"
+        },
+        {
+          "user": "Imeathiri sana usingizi wangu kwa sababu ninawaza mno usiku, na sina pesa za kumlipa mshauri sasa hivi. Nimechoka kutumiwa na watu, nifanye nini?",
+          "assistant": "Usiwe na wasiwasi kuhusu pesa—washauri wetu wa MindBridge wanatoa huduma hii bila malipo yoyote. Kuchoka kutumiwa na wengine ni mwanzo mzuri wa kuweka mipaka inayolinda thamani yako. Je, ungependa nikuonyeshe muda ambao mshauri wetu wa bure anapatikana ili uzungumze naye?"
+        }
+      ],
+      "English": [
+        {
+          "user": "I've tried hanging out with people before, but I always feel like I'm only there for convenience. When I have no money or say no, they disappear. Maybe something is wrong with me?",
+          "assistant": "I'm really sorry you've been treated that way, and please know nothing is wrong with you. It hurts deeply when people only value you for what you can give them and disappear when you have nothing left to offer. How long have you been carrying this feeling, and has it made it hard for you to trust anyone?"
+        },
+        {
+          "user": "It has affected me a lot. I lie awake overthinking at night, and I don't have money to pay a counsellor right now. I'm tired of having to help everyone just to keep them in my life. What should I do?",
+          "assistant": "First, please don't worry about money—speaking with a MindBridge counsellor is completely free of charge. Realising you are exhausted from people-pleasing is an important step toward protecting your peace and setting boundaries. Would you like me to show you the available times to talk with one of our free counsellors?"
+        }
+      ]
+    }
+  },
+  {
+    "topic": "family_conflict_and_home_stress",
+    "keywords": ["wazazi", "parents", "fighting", "kufight", "ugomvi", "keja", "nyumbani", "home", "makelele", "madhe", "fathe", "siblings", "ndugu"],
+    "examples": {
+      "Sheng": [
+        {
+          "user": "Home iko na stress mingi sana. Wazazi wanafight kila siku na siwezi kupata amani wala kusoma.",
+          "assistant": "Pole sana manze, kuishi kwa keja yenye ugomvi kila siku inachosha akili sana na kumbuka hilo si kosa lako hata kidogo. Hii hali imekuwa ikiendelea kwa muda gani, na inaaffect aje usingizi wako ama focus yako ya kila siku?"
+        }
+      ],
+      "Kiswahili": [
+        {
+          "user": "Nyumbani kuna ugomvi wa wazazi kila siku na nashindwa kupata utulivu wa kusoma.",
+          "assistant": "Pole sana, kuishi katika mazingira yenye ugomvi kila siku kunachosha akili na moyo, na hilo si kosa lako. Je, hali hii imedumu kwa muda gani na inaathiri vipi usingizi au masomo yako ya kila siku?"
+        }
+      ],
+      "English": [
+        {
+          "user": "Things at home are really stressful. My parents are fighting every day and I can't find any peace or focus.",
+          "assistant": "I'm so sorry you're dealing with that—living with constant conflict at home is mentally exhausting, and none of it is your fault. How long has this tension been going on, and how is it affecting your sleep and daily energy?"
+        }
+      ]
+    }
+  },
+  {
+    "topic": "school_fees_and_academic_burnout",
+    "keywords": ["karo", "fees", "school", "shule", "masomo", "exams", "mitihani", "marks", "grades", "fukuzwa", "giving up", "kuchoka kusoma", "hustle"],
+    "examples": {
+      "Sheng": [
+        {
+          "user": "Nimetumwa home juu ya school fees na exams zinakaribia, nafeel kama nimeachwa nyuma sana.",
+          "assistant": "Pole sana manze, kurudishwa home juu ya karo wakati unataka tu kusoma huleta stress nzito sana, na si makosa yako. Hii hali imeaffect aje psyche yako saa hii, na kuna mtu yeyote home mnaweza kuongea naye kuhusu mpango wa shule?"
+        }
+      ],
+      "Kiswahili": [
+        {
+          "user": "Nimerudishwa nyumbani kwa sababu ya karo ya shule na mitihani inakaribia, nahisi kukata tamaa.",
+          "assistant": "Pole sana kwa changamoto hiyo nzito; kusimamishwa masomo kwa sababu ya karo si kosa lako na inaeleweka kuhisi uzito huo. Je, hali hii inaathiri vipi utulivu wako wa akili kwa sasa?"
+        }
+      ],
+      "English": [
+        {
+          "user": "I was sent home because of school fees and exams are coming up. I feel so far behind and ready to give up.",
+          "assistant": "I'm really sorry you're carrying that weight—being sent home over school fees when you want to learn is deeply stressful and not your fault. How has this been affecting your mindset and energy at home this week?"
+        }
+      ]
+    }
+  },
+  {
+    "topic": "breakup_and_relationships",
+    "keywords": ["breakup", "broke up", "tuliachana", "tuliwachana", "ex", "girlfriend", "boyfriend", "mapenzi", "heartbroken", "kumtext"],
+    "examples": {
+      "Sheng": [
+        {
+          "user": "Tuliachana na dem wangu na bado namfikiria kila saa, natamani kumtext lakini najua aliniangusha.",
+          "assistant": "Pole sana manze, kuvunjika kwa relationship na mtu uliyemzoea huuma sana na ni kawaida kuwaza kumtext. Hii breakup ilihappen lini, na imekuwa ikiaffect aje usingizi na siku yako ya kawaida?"
+        }
+      ],
+      "Kiswahili": [
+        {
+          "user": "Tuliachana na mpenzi wangu na bado ninamfikiria sana, ninatamani kumtumia ujumbe ingawa aliniumiza.",
+          "assistant": "Pole sana kwa maumivu hayo ya moyo; ni kawaida kumkumbuka mtu uliyempenda hata baada ya kuumizwa. Je, mliachana muda gani uliopita, na hali hii inaathiri vipi utulivu na shughuli zako za kila siku?"
+        }
+      ],
+      "English": [
+        {
+          "user": "My girlfriend and I broke up and I keep overthinking everything. I want to text her even though she hurt me.",
+          "assistant": "I'm really sorry you're going through that heartbreak—wanting to reach out even after being hurt is a very human reaction. How long ago did the breakup happen, and how has it been affecting your sleep and daily routine?"
+        }
+      ]
+    }
+  }
+]

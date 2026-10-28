@@ -25,6 +25,13 @@ class Participant(models.Model):
     preferred_language = models.CharField(max_length=12, default="en")
     flow_state = models.CharField(max_length=20, default="menu")
 
+    def get_preferred_language_display(self):
+        return {
+            "en": "English",
+            "sw": "Kiswahili",
+            "sheng": "Sheng",
+        }.get(str(self.preferred_language or "").strip().casefold(), self.preferred_language or "English")
+
     def __str__(self):
         return f"{self.display_name} ({self.code})"
 

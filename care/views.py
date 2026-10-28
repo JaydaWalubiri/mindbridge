@@ -19,7 +19,7 @@ from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from .forms import SessionForm, AvailabilityForm
 from .models import AvailabilitySlot, CounsellorProfile, InboundMessage, Keyword, OutboundMessage, Participant, RiskAlert, Session, SessionRequest, WorkerStatus
-from .services import process_message, queue_session_confirmation, valid_turn_signature
+from .services import process_message, queue_session_confirmation, valid_turn_signature, send_green_api_message
 
 
 def assigned(user):
@@ -202,6 +202,9 @@ def admin_dashboard(request):
         "conversation_configured": bool(settings.CONVERSATION_ENABLED and settings.CONVERSATION_URL and settings.CONVERSATION_API_TOKEN),
         "turn_ready": bool(settings.TURN_WEBHOOK_SECRET and settings.TURN_API_TOKEN),
         "template_ready": bool(settings.TURN_TEMPLATE_NAMESPACE and settings.TURN_CHECKIN_TEMPLATE_NAME),
+        "green_api_ready": bool(getattr(settings, "GREEN_API_INSTANCE_ID", "") and getattr(settings, "GREEN_API_TOKEN_INSTANCE", "")),
+        "green_api_instance": getattr(settings, "GREEN_API_INSTANCE_ID", ""),
+        "recent_participants": Participant.objects.select_related("counsellor").order_by("is_simulated", "-last_inbound_at", "-created_at")[:10],
     })
 
 
@@ -260,19 +263,72 @@ def turn_webhook(request):
 
 
 @csrf_exempt
-def twilio_webhook(request):
-    """Twilio WhatsApp webhook endpoint for live mobile testing."""
+def green_api_webhook(request):
+    """GREEN-API WhatsApp webhook endpoint for live WhatsApp messaging."""
+    if request.method in ("GET", "HEAD"):
+        return JsonResponse({"status": "active", "service": "Green API Webhook"})
     if request.method != "POST":
-        return HttpResponseNotAllowed(["POST"])
+        return HttpResponseNotAllowed(["POST", "GET", "HEAD"])
 
-    raw_from = request.POST.get("From", "").strip()
-    wa_id = re.sub(r"^whatsapp:", "", raw_from).strip()
-    body = request.POST.get("Body", "").strip()
-    message_id = request.POST.get("MessageSid", "").strip() or f"tw-{uuid.uuid4().hex[:12]}"
-    profile_name = request.POST.get("ProfileName", "").strip()
+    try:
+        raw_body = request.body.decode("utf-8") if isinstance(request.body, bytes) else request.body
+        payload = json.loads(raw_body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({"error": "invalid json"}, status=400)
 
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "invalid payload"}, status=400)
+
+    type_webhook = payload.get("typeWebhook")
+    # Acknowledge non-incoming message events (status updates, device state, outgoing notifications)
+    if type_webhook != "incomingMessageReceived":
+        return JsonResponse({"status": "ignored", "type": type_webhook})
+
+    sender_data = payload.get("senderData") or {}
+    chat_id = sender_data.get("chatId") or sender_data.get("sender") or ""
+    if not chat_id:
+        return JsonResponse({"status": "missing_chat_id"}, status=400)
+
+    # Ignore WhatsApp group messages
+    if "@g.us" in chat_id:
+        return JsonResponse({"status": "ignored_group"})
+
+    wa_id = re.sub(r"@(c\.us|s\.whatsapp\.net)$", "", chat_id).strip()
+    profile_name = sender_data.get("senderName") or sender_data.get("chatName") or sender_data.get("senderContactName") or ""
+    message_id = payload.get("idMessage") or f"ga-{uuid.uuid4().hex[:12]}"
+
+    message_data = payload.get("messageData") or {}
+    type_msg = message_data.get("typeMessage")
+    body = ""
+    if type_msg == "textMessage":
+        body = (message_data.get("textMessageData") or {}).get("textMessage", "")
+    elif type_msg in ("extendedTextMessage", "quotedMessage"):
+        ext_data = message_data.get("extendedTextMessageData") or message_data.get("extendedTextMessage") or {}
+        if isinstance(ext_data, dict):
+            body = ext_data.get("text", "")
+        elif isinstance(ext_data, str):
+            body = ext_data
+        if not body:
+            body = message_data.get("textMessage", "")
+    elif type_msg == "buttonsResponseMessage":
+        btn = message_data.get("buttonsResponseMessage") or {}
+        body = btn.get("selectedButtonId") or btn.get("selectedDisplayText") or ""
+    elif type_msg == "listResponseMessage":
+        lst = message_data.get("listResponseMessage") or {}
+        body = lst.get("selectedRowId") or lst.get("title") or ""
+    else:
+        # Check any nested text payload
+        ext_data = message_data.get("extendedTextMessageData") or message_data.get("extendedTextMessage") or {}
+        if isinstance(ext_data, dict):
+            body = ext_data.get("text", "")
+        if not body:
+            body = (message_data.get("textMessageData") or {}).get("textMessage", "")
+        if not body:
+            body = message_data.get("textMessage") or ""
+
+    body = str(body).strip()
     if not wa_id or not body:
-        return HttpResponse('<?xml version="1.0" encoding="UTF-8"?><Response/>', content_type="application/xml")
+        return JsonResponse({"status": "empty_message"})
 
     person, _ = Participant.objects.get_or_create(wa_id=wa_id, defaults={
         "code": "MB-" + uuid.uuid4().hex[:12].upper(),
@@ -284,12 +340,28 @@ def twilio_webhook(request):
 
     buttons = getattr(incoming, "suggested_buttons", None) or ()
     if buttons:
-        btn_block = "\n".join([f"• {title}" for _, title in buttons])
+        btn_block = "\n".join([f"- {title}" for _, title in buttons])
         if btn_block not in reply_text:
             reply_text = f"{reply_text}\n\n{btn_block}"
 
-    twiml = f'<?xml version="1.0" encoding="UTF-8"?><Response><Message>{html.escape(reply_text)}</Message></Response>'
-    return HttpResponse(twiml, content_type="application/xml")
+    sent_provider_id = None
+    if reply_text:
+        sent_provider_id = send_green_api_message(chat_id, reply_text)
+        if sent_provider_id:
+            OutboundMessage.objects.filter(
+                dedupe_key=f"reply:{incoming.external_id}",
+                status="pending"
+            ).update(
+                status="sent",
+                sent_at=timezone.now(),
+                provider_message_id=sent_provider_id
+            )
+
+    return JsonResponse({
+        "status": "ok",
+        "message_id": message_id,
+        "reply_sent": bool(sent_provider_id)
+    })
 
 
 @login_required
@@ -311,7 +383,7 @@ def availability(request):
                 messages.success(request, "Available appointment time added.")
                 return redirect("availability")
     return render(request, "care/availability.html", {"active": "availability", "form": form,
-        "slots": AvailabilitySlot.objects.filter(starts_at__gt=timezone.now()).filter(Q(is_active=True) | Q(session__isnull=False)).filter(Q(counsellor=request.user) if not request.user.is_staff else Q()).select_related("counsellor")})
+        "slots": AvailabilitySlot.objects.filter(starts_at__gt=timezone.now()).filter(Q(is_active=True) | Q(session__isnull=False)).filter(Q(counsellor=request.user) if not request.user.is_staff else Q(counsellor__is_staff=False)).select_related("counsellor")})
 
 
 @login_required

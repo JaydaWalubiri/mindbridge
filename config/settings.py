@@ -63,6 +63,14 @@ if os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
 CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if x.strip()]
 STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+if DEBUG:
+    for _origin in ("https://*.trycloudflare.com", "http://127.0.0.1:8000", "http://localhost:8000"):
+        if _origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_origin)
+AUTHENTICATION_BACKENDS = [
+    "care.backends.CareWorkspaceBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
@@ -82,6 +90,12 @@ CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
 
 TURN_STAFF_TEMPLATE_NAME = os.environ.get("TURN_STAFF_TEMPLATE_NAME", "")
 TURN_SUPPORT_TEMPLATE_NAME = os.environ.get("TURN_SUPPORT_TEMPLATE_NAME", "")
+
+# Green API (WhatsApp) Settings
+GREEN_API_INSTANCE_ID = os.environ.get("GREEN_API_INSTANCE_ID", "").strip()
+GREEN_API_TOKEN_INSTANCE = os.environ.get("GREEN_API_TOKEN_INSTANCE", "").strip()
+GREEN_API_HOST = os.environ.get("GREEN_API_HOST", "https://api.green-api.com").strip().rstrip("/")
+
 RISK_NEGATIVE_THRESHOLD = float(os.environ.get("RISK_NEGATIVE_THRESHOLD", "0.85"))
 SENTIMENT_ENABLED = os.environ.get("SENTIMENT_ENABLED", "0") == "1"
 SENTIMENT_RISK_ENABLED = os.environ.get("SENTIMENT_RISK_ENABLED", "0") == "1"
