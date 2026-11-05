@@ -113,3 +113,17 @@ if _conversation_manifest.is_file():
     _candidate = json.loads(_conversation_manifest.read_text(encoding="utf-8"))
     _conversation_source = _candidate["adapter_repo"] + "@" + _candidate["adapter_revision"]
 CONVERSATION_EXPECTED_SOURCE = os.environ.get("CONVERSATION_EXPECTED_SOURCE", _conversation_source)
+
+import sys
+if 'test' in sys.argv:
+    import warnings
+    warnings.filterwarnings('ignore')
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {'null': {'class': 'logging.NullHandler'}},
+        'loggers': {
+            'django.request': {'handlers': ['null'], 'level': 'CRITICAL', 'propagate': False},
+            'care.model_ports': {'handlers': ['null'], 'level': 'WARNING', 'propagate': False},
+        },
+    }

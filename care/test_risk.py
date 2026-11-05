@@ -53,7 +53,7 @@ class KeywordMatchingTests(SimpleTestCase):
         self.assertTrue(matches_keyword("sitaki kuishi", "sitaki kuishi"))
 
 
-@override_settings(RISK_NEGATIVE_THRESHOLD=0.85, TURN_API_TOKEN="")
+@override_settings(RISK_NEGATIVE_THRESHOLD=0.85, TURN_API_TOKEN="", SENTIMENT_ENABLED=False, SENTIMENT_RISK_ENABLED=False)
 class RiskRuleTests(TestCase):
     def setUp(self):
         self.now = timezone.now()
