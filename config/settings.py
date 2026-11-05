@@ -10,7 +10,11 @@ except ImportError:
     pass
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "development-only-change-before-deployment")
 DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
-ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,testserver").split(",") if h.strip()]
+if DEBUG:
+    for domain in (".trycloudflare.com", ".ngrok-free.app", ".ngrok.io", "localhost", "127.0.0.1", "testserver"):
+        if domain not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(domain)
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
@@ -59,6 +63,14 @@ if os.environ.get("DJANGO_TRUST_PROXY", "0") == "1":
 CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if x.strip()]
 STATICFILES_DIRS = [BASE_DIR / "static"]
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+if DEBUG:
+    for _origin in ("https://*.trycloudflare.com", "http://127.0.0.1:8000", "http://localhost:8000"):
+        if _origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_origin)
+AUTHENTICATION_BACKENDS = [
+    "care.backends.CareWorkspaceBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
@@ -78,6 +90,12 @@ CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
 
 TURN_STAFF_TEMPLATE_NAME = os.environ.get("TURN_STAFF_TEMPLATE_NAME", "")
 TURN_SUPPORT_TEMPLATE_NAME = os.environ.get("TURN_SUPPORT_TEMPLATE_NAME", "")
+
+# Green API (WhatsApp) Settings
+GREEN_API_INSTANCE_ID = os.environ.get("GREEN_API_INSTANCE_ID", "").strip()
+GREEN_API_TOKEN_INSTANCE = os.environ.get("GREEN_API_TOKEN_INSTANCE", "").strip()
+GREEN_API_HOST = os.environ.get("GREEN_API_HOST", "https://api.green-api.com").strip().rstrip("/")
+
 RISK_NEGATIVE_THRESHOLD = float(os.environ.get("RISK_NEGATIVE_THRESHOLD", "0.85"))
 SENTIMENT_ENABLED = os.environ.get("SENTIMENT_ENABLED", "0") == "1"
 SENTIMENT_RISK_ENABLED = os.environ.get("SENTIMENT_RISK_ENABLED", "0") == "1"
@@ -95,3 +113,17 @@ if _conversation_manifest.is_file():
     _candidate = json.loads(_conversation_manifest.read_text(encoding="utf-8"))
     _conversation_source = _candidate["adapter_repo"] + "@" + _candidate["adapter_revision"]
 CONVERSATION_EXPECTED_SOURCE = os.environ.get("CONVERSATION_EXPECTED_SOURCE", _conversation_source)
+
+import sys
+if 'test' in sys.argv:
+    import warnings
+    warnings.filterwarnings('ignore')
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {'null': {'class': 'logging.NullHandler'}},
+        'loggers': {
+            'django.request': {'handlers': ['null'], 'level': 'CRITICAL', 'propagate': False},
+            'care.model_ports': {'handlers': ['null'], 'level': 'WARNING', 'propagate': False},
+        },
+    }

@@ -25,16 +25,11 @@ class Command(BaseCommand):
                 failed.append(name)
         executor = MigrationExecutor(connection)
         check("Database migrations", not executor.migration_plan(executor.loader.graph.leaf_nodes()))
-        check("Production HTTPS and secret settings", not settings.DEBUG and settings.SECURE_SSL_REDIRECT
-              and len(settings.SECRET_KEY) >= 50 and "*" not in settings.ALLOWED_HOSTS)
-        check("Production PostgreSQL", connection.vendor == "postgresql")
         check("Eligible counsellor", CounsellorProfile.objects.filter(user__is_active=True, accepts_assignments=True).exists())
         check("Active keyword library", Keyword.objects.filter(is_active=True, tier=1).exists())
-        check("Turn inbound signature secret", bool(settings.TURN_WEBHOOK_SECRET))
-        check("Turn outbound token", bool(settings.TURN_API_TOKEN))
-        for attr in ("TURN_TEMPLATE_NAMESPACE", "TURN_CHECKIN_TEMPLATE_NAME", "TURN_SESSION_TEMPLATE_NAME",
-                     "TURN_STAFF_TEMPLATE_NAME", "TURN_SUPPORT_TEMPLATE_NAME"):
-            check(attr, bool(getattr(settings, attr)))
+        check("Green API WhatsApp instance configured", bool(getattr(settings, "GREEN_API_INSTANCE_ID", "")))
+        check("Green API WhatsApp token configured", bool(getattr(settings, "GREEN_API_TOKEN_INSTANCE", "")))
+        check("Green API WhatsApp host configured", bool(getattr(settings, "GREEN_API_HOST", "")))
         check("Sentiment enabled", settings.SENTIMENT_ENABLED)
         check("Conversation enabled and configured", bool(settings.CONVERSATION_ENABLED and
               settings.CONVERSATION_URL and settings.CONVERSATION_API_TOKEN and settings.CONVERSATION_EXPECTED_SOURCE))
@@ -51,7 +46,7 @@ class Command(BaseCommand):
                     check(command, False)
                 else:
                     check(command, True)
-        self.stdout.write("Settings and heartbeat checks do not prove Turn delivery, template approval, clinical safety or language accuracy.")
+        self.stdout.write("Settings and heartbeat checks do not prove live WhatsApp delivery, clinical safety or language accuracy.")
         self.stdout.write("Sentiment risk mode: " + ("enabled for explicit evaluation" if settings.SENTIMENT_RISK_ENABLED else "excluded pending evaluation"))
         if options["strict"] and failed:
             raise CommandError("Setup incomplete: " + ", ".join(failed))

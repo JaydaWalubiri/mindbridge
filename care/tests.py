@@ -454,3 +454,117 @@ class ProposalWorkflowTests(TestCase):
         call_command("run_reminders", stdout=out)
         self.assertIn("session reminder", out.getvalue().lower())
 
+
+    def test_green_api_webhook_get(self):
+        resp = self.client.get("/webhooks/green-api/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("status"), "active")
+
+    def test_green_api_webhook_ignores_non_incoming(self):
+        payload = {"typeWebhook": "outgoingMessageReceived", "idMessage": "out-1"}
+        resp = self.client.post("/webhooks/green-api/", data=payload, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("status"), "ignored")
+
+    def test_green_api_webhook_ignores_group_message(self):
+        payload = {
+            "typeWebhook": "incomingMessageReceived",
+            "idMessage": "grp-1",
+            "senderData": {"chatId": "12036302@g.us", "sender": "254700000099@c.us"},
+            "messageData": {"typeMessage": "textMessage", "textMessageData": {"textMessage": "Hello in group"}}
+        }
+        resp = self.client.post("/webhooks/green-api/", data=payload, content_type="application/json")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json().get("status"), "ignored_group")
+
+    def test_green_api_webhook_incoming_text_and_delivery(self):
+        from unittest.mock import patch
+        payload = {
+            "typeWebhook": "incomingMessageReceived",
+            "idMessage": "GA_MSG_001",
+            "senderData": {
+                "chatId": "254700000088@c.us",
+                "sender": "254700000088@c.us",
+                "senderName": "Green API Tester"
+            },
+            "messageData": {
+                "typeMessage": "textMessage",
+                "textMessageData": {"textMessage": "Hello"}
+            }
+        }
+        with patch("care.views.send_green_api_message", return_value="ga-provider-id-123") as mock_send:
+            resp = self.client.post("/webhooks/green-api/", data=payload, content_type="application/json")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data.get("status"), "ok")
+            self.assertTrue(data.get("reply_sent"))
+            mock_send.assert_called_once()
+            chat_id, text = mock_send.call_args[0]
+            self.assertEqual(chat_id, "254700000088@c.us")
+            self.assertIn("Welcome to MindBridge", text)
+
+        person = Participant.objects.get(wa_id="254700000088")
+        self.assertEqual(person.display_name, "Green API Tester")
+        self.assertTrue(InboundMessage.objects.filter(external_id="GA_MSG_001").exists())
+
+    def test_green_api_send_and_deliver_due(self):
+        from unittest.mock import patch, MagicMock
+        from care.services import send_green_api_message, deliver_due
+        import io
+
+        # Test when credentials missing
+        with self.settings(GREEN_API_INSTANCE_ID="", GREEN_API_TOKEN_INSTANCE=""):
+            self.assertIsNone(send_green_api_message("254700000001", "hello"))
+
+        # Test when credentials configured
+        class MockResponse:
+            def __enter__(self):
+                return io.BytesIO(b'{"idMessage": "GA_MSG_789"}')
+            def __exit__(self, *args):
+                pass
+
+        with self.settings(GREEN_API_INSTANCE_ID="12345", GREEN_API_TOKEN_INSTANCE="token123", TURN_API_TOKEN=""):
+            with patch("care.services.urlopen", return_value=MockResponse()):
+                msg_id = send_green_api_message("254700000001", "test msg")
+                self.assertEqual(msg_id, "GA_MSG_789")
+
+                person = self.person()
+                person.wa_id = "254700000001"
+                person.consented = True
+                person.save()
+
+                out_msg = OutboundMessage.objects.create(
+                    participant=person,
+                    dedupe_key="green_api_test_delivery:1",
+                    payload={"to": "254700000001@c.us", "text": {"body": "Scheduled message"}}
+                )
+                sent_count = deliver_due(limit=10)
+                self.assertEqual(sent_count, 1)
+                out_msg.refresh_from_db()
+                self.assertEqual(out_msg.status, "sent")
+                self.assertEqual(out_msg.provider_message_id, "GA_MSG_789")
+
+    def test_green_api_webhook_quoted_message(self):
+        from unittest.mock import patch
+        payload = {
+            "typeWebhook": "incomingMessageReceived",
+            "idMessage": "GA_MSG_QUOTED_001",
+            "senderData": {
+                "chatId": "254700000077@c.us",
+                "sender": "254700000077@c.us",
+                "senderName": "Quoted Sender"
+            },
+            "messageData": {
+                "typeMessage": "quotedMessage",
+                "extendedTextMessageData": {
+                    "text": "I agree",
+                    "stanzaId": "ORIGINAL_MSG_ID"
+                }
+            }
+        }
+        with patch("care.views.send_green_api_message", return_value="ga-provider-quoted") as mock_send:
+            resp = self.client.post("/webhooks/green-api/", data=payload, content_type="application/json")
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json().get("status"), "ok")
+            person = Participant.objects.get(wa_id="254700000077")
+            self.assertTrue(person.consented)

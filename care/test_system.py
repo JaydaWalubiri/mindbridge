@@ -114,7 +114,7 @@ class OperationsTests(TestCase):
             call_command("check_system",stdout=output)
             sender.assert_not_called();opener.assert_not_called()
         self.assertIn("NEEDS SETUP",output.getvalue())
-        self.assertIn("do not prove Turn delivery",output.getvalue())
+        self.assertIn("do not prove live WhatsApp delivery",output.getvalue())
 
     @override_settings(SENTIMENT_RISK_ENABLED=False)
     def test_disabled_sentiment_cannot_reuse_old_risk_evidence(self):
