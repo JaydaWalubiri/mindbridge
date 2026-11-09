@@ -77,7 +77,7 @@ class WholeJourneyTests(TestCase):
             self.post("I intend to take my own life today")
             self.post("Counsellor")
             reply=InboundMessage.objects.order_by("-pk").first().reply
-            self.assertIn("999",reply)
+            self.assertNotIn("999",reply)
             self.assertIn("1.",reply)
             self.assertEqual(person.session_requests.filter(status="pending").count(),1)
             self.post("1")

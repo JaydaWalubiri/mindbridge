@@ -330,7 +330,7 @@ def extract_mood_score(command_text, raw_text):
         return int(cmd[-1])
     if cmd in ("1", "2", "3", "4", "5"):
         return int(cmd)
-    m = re.match(r"^(?:mood\s*)?([1-5])(?:\s*[\-—:]?\s*[𐀀-􏿿\s]*)$", raw, re.IGNORECASE)
+    m = re.match(r"^(?:mood\s*)?([1-5])(?:\s*[\-—:]?\s*[\U00010000-\U0010ffff\s]*)$", raw, re.IGNORECASE)
     if m:
         return int(m.group(1))
     return None
@@ -367,7 +367,11 @@ def process_message(participant, body, external_id):
                 participant.preferred_language = "en"
         active_safety = participant.alerts.filter(status="open", priority="high",
             trigger_source__in=("Tier-1 keyword override", "response safety override")).first()
-        if not response_kind and active_safety and participant.consented:
+        is_booking_step = participant.consented and participant.onboarding_complete and (
+            _wants_counsellor_booking(participant, command, text)
+            or (participant.flow_state == "booking" and command.isdigit())
+        )
+        if not response_kind and active_safety and participant.consented and not is_booking_step:
             response_kind = "urgent"
         early_signal = None
         if command in ("delete my data", "delete data"):
@@ -412,12 +416,6 @@ def process_message(participant, body, external_id):
             # Emergency guidance must not wait for onboarding or model/network calls.
             reply = scripted_reply(response_kind, response_language)
             reply_source = "scripted_safety"
-            # Keep emergency guidance while allowing an opted-in person to request help.
-            if participant.consented and participant.onboarding_complete:
-                if command in ("counsellor", "talk to a counsellor", "talk to counsellor", "session"):
-                    reply += "\n\n" + slot_prompt(participant)
-                elif participant.flow_state == "booking" and command.isdigit():
-                    reply += "\n\n" + select_booking(participant, command)
             if participant.consented:
                 early_signal = (active_safety.priority, active_safety.reason,
                     active_safety.trigger_source) if active_safety else assess(participant, text) or (
@@ -591,6 +589,7 @@ def process_message(participant, body, external_id):
         if (participant.consented and participant.onboarding_complete and not analyse
             and command not in ("i agree", "yes, i agree", "i understand", "privacy", "my data", "counsellor",
                 "talk to a counsellor", "talk to counsellor", "session", "check in", "check in again", "check-in", "mood")
+            and not is_booking_step
             and not command.isdigit()):
             analyse = True  # Include free text sent while choosing an appointment.
         signal = early_signal or (assess(participant, text, classification) if analyse else None)
