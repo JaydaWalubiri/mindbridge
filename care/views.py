@@ -293,7 +293,7 @@ def green_api_webhook(request):
     if "@g.us" in chat_id:
         return JsonResponse({"status": "ignored_group"})
 
-    wa_id = re.sub(r"@(c\.us|s\.whatsapp\.net)$", "", chat_id).strip()
+    wa_id = re.sub(r"@(c\.us|s\.whatsapp\.net|lid)$", "", chat_id).strip()[:32]
     profile_name = sender_data.get("senderName") or sender_data.get("chatName") or sender_data.get("senderContactName") or ""
     message_id = payload.get("idMessage") or f"ga-{uuid.uuid4().hex[:12]}"
 
@@ -335,7 +335,7 @@ def green_api_webhook(request):
         "display_name": profile_name or ("Participant " + uuid.uuid4().hex[:6].upper()),
     })
 
-    incoming, _ = process_message(person, body, message_id[:128])
+    incoming, created = process_message(person, body, message_id[:128])
     reply_text = incoming.reply or ""
 
     buttons = getattr(incoming, "suggested_buttons", None) or ()
@@ -345,17 +345,35 @@ def green_api_webhook(request):
             reply_text = f"{reply_text}\n\n{btn_block}"
 
     sent_provider_id = None
-    if reply_text:
+    if created and reply_text:
+        # Claim the OutboundMessage (and any duplicate session confirmation queued during in-chat booking)
+        # before network I/O so deliver_due() never sends a duplicate or out-of-order reply later
+        OutboundMessage.objects.filter(
+            participant=person,
+            status="pending",
+        ).filter(
+            Q(dedupe_key=f"reply:{incoming.external_id}") | Q(dedupe_key__startswith="session:")
+        ).update(
+            status="sent",
+            sent_at=timezone.now(),
+        )
         sent_provider_id = send_green_api_message(chat_id, reply_text)
         if sent_provider_id:
             OutboundMessage.objects.filter(
-                dedupe_key=f"reply:{incoming.external_id}",
-                status="pending"
+                participant=person,
+            ).filter(
+                Q(dedupe_key=f"reply:{incoming.external_id}") | Q(dedupe_key__startswith="session:", provider_message_id="")
             ).update(
                 status="sent",
                 sent_at=timezone.now(),
                 provider_message_id=sent_provider_id
             )
+            InboundMessage.objects.filter(pk=incoming.pk).update(delivered=True)
+        else:
+            OutboundMessage.objects.filter(
+                dedupe_key=f"reply:{incoming.external_id}",
+                provider_message_id=""
+            ).update(status="pending")
 
     return JsonResponse({
         "status": "ok",
@@ -459,9 +477,12 @@ def simulator_message(request):
     else:
         person = Participant.objects.filter(pk=request.session.get(key), is_simulated=True).first()
     if not person or data.get("reset"):
-        person = Participant.objects.create(code="MB-CHAT-"+uuid.uuid4().hex[:10].upper(),
-                    display_name="New participant", is_simulated=True)
-        request.session[key] = person.pk
+        if person and person.flow_state == "age_ineligible" and not data.get("clear_all"):
+            pass
+        else:
+            person = Participant.objects.create(code="MB-CHAT-"+uuid.uuid4().hex[:10].upper(),
+                        display_name="New participant", is_simulated=True)
+            request.session[key] = person.pk
     if getattr(request.user, "is_authenticated", False) and not getattr(request.user, "is_staff", False):
         if not person.counsellor_id:
             person.counsellor = request.user

@@ -7,6 +7,7 @@ from django.utils import timezone
 class Participant(models.Model):
     code = models.CharField(max_length=32, unique=True)
     display_name = models.CharField(max_length=80)
+    date_of_birth = models.DateField(null=True, blank=True)
     age = models.PositiveSmallIntegerField(null=True, blank=True, validators=[MinValueValidator(13), MaxValueValidator(24)])
     onboarding_complete = models.BooleanField(default=False)
     minor_assent_at = models.DateTimeField(null=True, blank=True)

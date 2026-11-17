@@ -29,10 +29,11 @@
                 <strong>Review the full journey</strong>
 
                 <p>
-                    Agree, choose a nickname, enter age, submit a mood,
-                    write a note, then request a counsellor and choose an
-                    appointment time. Run prepare_test_data once to create
-                    counsellors and available appointment times.
+                    Agree, choose a nickname, enter your date of birth
+                    (DD/MM/YYYY), submit a mood, write a note, then request a
+                    counsellor and choose an appointment time. Run
+                    prepare_test_data once to create counsellors and available
+                    appointment times.
                 </p>
 
                 <p id="test-status" role="status"></p>
@@ -124,7 +125,20 @@
         const nlpSource = document.getElementById('nlp-source');
         const nlpRiskStatus = document.getElementById('nlp-risk-status');
 
+        const AGE_LOCK_KEY = 'mb_age_restricted';
+        const resetBtn = document.getElementById('reset');
         let busy = false;
+
+        function applyAgeLockUI(locked) {
+            if (locked) {
+                input.disabled = true;
+                input.placeholder = 'Registration locked (ineligible date of birth)';
+                if (resetBtn) resetBtn.disabled = true;
+            } else {
+                input.disabled = false;
+                if (resetBtn) resetBtn.disabled = false;
+            }
+        }
 
         function add(message, side) {
             const node = document.createElement('div');
@@ -230,12 +244,26 @@
 
                 const data = await response.json();
 
+                if (clear_all) {
+                    localStorage.removeItem(AGE_LOCK_KEY);
+                    applyAgeLockUI(false);
+                }
+
                 if (reset) {
                     chat.replaceChildren();
                 }
 
                 add(data.reply, 'received');
                 options(data.buttons);
+
+                if (data.state === 'age_ineligible') {
+                    localStorage.setItem(AGE_LOCK_KEY, String(Date.now()));
+                    applyAgeLockUI(true);
+                } else if (data.state === 'age') {
+                    input.placeholder = 'DD/MM/YYYY (e.g. 14/05/2006)';
+                } else {
+                    input.placeholder = 'Write a message';
+                }
 
                 status.textContent =
                     data.code + ' · ' + data.assigned_to;
@@ -253,8 +281,12 @@
                 });
             } finally {
                 busy = false;
-                input.disabled = false;
-                input.focus();
+                if (!localStorage.getItem(AGE_LOCK_KEY)) {
+                    input.disabled = false;
+                    input.focus();
+                } else {
+                    applyAgeLockUI(true);
+                }
             }
         }
 
@@ -293,6 +325,11 @@
             ['consent_yes', 'I agree'],
             ['consent_no', 'Not now']
         ]);
+
+        if (localStorage.getItem(AGE_LOCK_KEY)) {
+            applyAgeLockUI(true);
+            status.textContent = 'Age restriction active on this browser. Click "Clear all test conversations" to reset.';
+        }
     </script>
 </body>
 </html>

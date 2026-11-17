@@ -5,7 +5,7 @@ import json
 import re
 from hashlib import sha256
 from urllib.request import Request, urlopen
-from datetime import timedelta
+from datetime import date, timedelta
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
@@ -44,11 +44,34 @@ def send_turn_payload(payload):
         return result.get("messages", [{}])[0].get("id", "")
 
 
+_green_http = None
+
+
+def _get_green_http():
+    global _green_http
+    if _green_http is None:
+        import urllib3
+        _green_http = urllib3.PoolManager(
+            maxsize=8,
+            timeout=urllib3.Timeout(connect=6.0, read=12.0),
+            retries=urllib3.Retry(total=2, connect=2, read=1, backoff_factor=0.3),
+        )
+    return _green_http
+
+
+def _resolve_green_host(host, instance_id):
+    host = (host or "https://api.green-api.com").strip().rstrip("/")
+    inst = str(instance_id or "").strip()
+    if host == "https://api.green-api.com" and len(inst) >= 4 and inst[:4].isdigit():
+        return f"https://{inst[:4]}.api.green-api.com"
+    return host
+
+
 def send_green_api_message(chat_id, message_text):
-    """Send WhatsApp message via GREEN-API REST endpoint."""
+    """Send WhatsApp message via GREEN-API REST endpoint with persistent TLS pooling and retry."""
     instance_id = getattr(settings, "GREEN_API_INSTANCE_ID", "")
     api_token = getattr(settings, "GREEN_API_TOKEN_INSTANCE", "")
-    host = getattr(settings, "GREEN_API_HOST", "https://api.green-api.com").rstrip("/")
+    host = _resolve_green_host(getattr(settings, "GREEN_API_HOST", "https://api.green-api.com"), instance_id)
     if not instance_id or not api_token:
         return None
 
@@ -58,15 +81,30 @@ def send_green_api_message(chat_id, message_text):
 
     url = f"{host}/waInstance{instance_id}/sendMessage/{api_token}"
     payload = json.dumps({"chatId": chat_id, "message": message_text}).encode("utf-8")
-    req = Request(
-        url,
-        data=payload,
-        headers={"Content-Type": "application/json", "User-Agent": "MindBridge/1.0"},
-        method="POST"
-    )
-    with urlopen(req, timeout=10) as response:
-        result = json.load(response)
-        return result.get("idMessage") or "sent"
+    try:
+        resp = _get_green_http().request(
+            "POST",
+            url,
+            body=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "MindBridge/1.0"},
+        )
+        if resp.status == 200:
+            result = json.loads(resp.data.decode("utf-8"))
+            return result.get("idMessage") or "sent"
+    except Exception:
+        pass
+    try:
+        req = Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json", "User-Agent": "MindBridge/1.0"},
+            method="POST"
+        )
+        with urlopen(req, timeout=12) as response:
+            result = json.load(response)
+            return result.get("idMessage") or "sent"
+    except Exception:
+        return None
 
 
 def text_payload(wa_id, body, buttons=()):
@@ -335,6 +373,70 @@ def extract_mood_score(command_text, raw_text):
         return int(m.group(1))
     return None
 
+
+_MONTHS = {
+    "jan": 1, "january": 1,
+    "feb": 2, "february": 2,
+    "mar": 3, "march": 3,
+    "apr": 4, "april": 4,
+    "may": 5,
+    "jun": 6, "june": 6,
+    "jul": 7, "july": 7,
+    "aug": 8, "august": 8,
+    "sep": 9, "sept": 9, "september": 9,
+    "oct": 10, "october": 10,
+    "nov": 11, "november": 11,
+    "dec": 12, "december": 12,
+}
+
+
+def parse_date_of_birth(raw_text, today=None):
+    """Parse a date of birth string into (dob, calculated_age, status)."""
+    today = today or timezone.localdate()
+    val = (raw_text or "").strip()
+    if re.fullmatch(r"\d{1,3}", val):
+        return None, None, "raw_age"
+
+    day = month = year = None
+    m_dmy = re.fullmatch(r"(\d{1,2})[/\-\.\s]+(\d{1,2})[/\-\.\s]+(\d{4})", val)
+    if m_dmy:
+        day, month, year = int(m_dmy.group(1)), int(m_dmy.group(2)), int(m_dmy.group(3))
+        if month > 12 and day <= 12:
+            day, month = month, day
+    else:
+        m_ymd = re.fullmatch(r"(\d{4})[/\-\.\s]+(\d{1,2})[/\-\.\s]+(\d{1,2})", val)
+        if m_ymd:
+            year, month, day = int(m_ymd.group(1)), int(m_ymd.group(2)), int(m_ymd.group(3))
+        else:
+            m_text_dmy = re.fullmatch(
+                r"(\d{1,2})(?:st|nd|rd|th)?[\s,\-]+([a-zA-Z]+)[\s,\-]+(\d{4})", val
+            )
+            m_text_mdy = re.fullmatch(
+                r"([a-zA-Z]+)[\s,\-]+(\d{1,2})(?:st|nd|rd|th)?[\s,\-]+(\d{4})", val
+            )
+            if m_text_dmy:
+                day = int(m_text_dmy.group(1))
+                month = _MONTHS.get(m_text_dmy.group(2).casefold())
+                year = int(m_text_dmy.group(3))
+            elif m_text_mdy:
+                month = _MONTHS.get(m_text_mdy.group(1).casefold())
+                day = int(m_text_mdy.group(2))
+                year = int(m_text_mdy.group(3))
+
+    if not (day and month and year):
+        return None, None, "invalid_date"
+
+    try:
+        dob = date(year, month, day)
+    except ValueError:
+        return None, None, "invalid_date"
+
+    if dob > today or year < 1900:
+        return None, None, "invalid_date"
+
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return dob, age, "ok"
+
 def process_message(participant, body, external_id):
     """Persistent conversation used by Turn.io and by the staff-only local test chat."""
     from .workflows import assign_counsellor, create_alert, slot_prompt, select_booking
@@ -350,6 +452,7 @@ def process_message(participant, body, external_id):
         command = {"consent_yes": "i agree", "consent_no": "not now", "request_session": "session",
                    "checkin": "check in", "pause": "pause", "minor_yes": "i understand",
                    "mood_1": "1", "mood_2": "2", "mood_3": "3", "mood_4": "4", "mood_5": "5"}.get(command, command)
+        prev_inbound_at = participant.last_inbound_at
         participant.last_inbound_at = timezone.now()
         buttons = ()
         classification = None
@@ -382,15 +485,16 @@ def process_message(participant, body, external_id):
         elif participant.deletion_requested_at:
             reply = "Your deletion request is pending. Check-ins are paused."
         elif command in ("privacy", "my data"):
-            reply = ("We store your nickname, age, WhatsApp ID, check-ins and appointments for assigned care staff. "
+            reply = ("We store your nickname, date of birth (age), WhatsApp ID, check-ins and appointments for assigned care staff. "
                      "Mood and message records are kept for at most 12 months. Type Delete my data to request deletion within 30 days, or Pause to stop check-ins.")
         elif command in ("stop", "pause", "pause check-ins", "not now"):
             participant.consented = False
             participant.consented_at = None
-            participant.flow_state = "menu"
+            if participant.flow_state != "age_ineligible":
+                participant.flow_state = "menu"
             reply = "That's okay. Check-ins are paused. Message us whenever you're ready to continue."
             OutboundMessage.objects.filter(participant=participant, status="pending").update(status="cancelled")
-            buttons = (("consent_yes", "I agree"),)
+            buttons = () if participant.flow_state == "age_ineligible" else (("consent_yes", "I agree"),)
         elif active_safety and bool(re.search(r"\b(?:sina\s+mtu|sina\s+msee|hakuna\s+msee|hakuna\s+mtu|no\s+one|nobody|anyone|alone|pekee?\s+yangu|solo)\b", normalise(text))):
             from .workflows import slot_prompt
             assign_counsellor(participant)
@@ -424,7 +528,10 @@ def process_message(participant, body, external_id):
                 create_alert(participant, priority, reason, source)
             buttons = (("request_session", "Counsellor"),) if participant.onboarding_complete else ()
         elif not participant.consented:
-            if command in ("i agree", "yes, i agree"):
+            if participant.flow_state == "age_ineligible":
+                reply = ("Registration is locked for this session because the date of birth provided "
+                         "is outside the 13–24 age range supported by MindBridge.")
+            elif command in ("i agree", "yes, i agree"):
                 participant.consented = True
                 participant.consented_at = timezone.now()
                 if participant.onboarding_complete:
@@ -438,18 +545,35 @@ def process_message(participant, body, external_id):
                 reply = CONSENT
                 buttons = (("consent_yes", "I agree"), ("consent_no", "Not now"))
         elif not participant.onboarding_complete:
-            if participant.flow_state == "nickname":
+            if participant.flow_state == "age_ineligible":
+                reply = ("Registration is locked for this session because the date of birth provided "
+                         "is outside the 13–24 age range supported by MindBridge.")
+            elif participant.flow_state == "nickname":
                 if not 2 <= len(text) <= 80:
                     reply = "Please choose a nickname between 2 and 80 characters."
                 else:
                     participant.display_name = text
                     participant.flow_state = "age"
-                    reply = "How old are you? Send your age as a number. This prototype is for ages 13–24."
+                    reply = "What is your date of birth? Please reply in DD/MM/YYYY format (for example, 14/05/2006)."
             elif participant.flow_state == "age":
-                if not command.isdigit() or not 13 <= int(command) <= 24:
-                    reply = "This prototype is for ages 13–24. Please enter an age in that range, or choose Not now."
+                dob, calculated_age, dob_status = parse_date_of_birth(text)
+                if dob_status == "raw_age":
+                    reply = ("Please enter your full date of birth in DD/MM/YYYY format "
+                             "(for example, 14/05/2006) rather than just your age.")
+                elif dob_status != "ok":
+                    reply = ("Please enter a valid date of birth in DD/MM/YYYY format "
+                             "(for example, 14/05/2006), or choose Not now.")
+                    buttons = (("consent_no", "Not now"),)
+                elif not 13 <= calculated_age <= 24:
+                    participant.age = None
+                    participant.date_of_birth = None
+                    participant.flow_state = "age_ineligible"
+                    reply = ("Thank you for your interest. This MindBridge prototype supports youth aged 13–24, "
+                             "so we cannot complete registration for this account. If you need immediate support, "
+                             "please call 1190 or Kenya emergency services on 999 or 112.")
                 else:
-                    participant.age = int(command)
+                    participant.date_of_birth = dob
+                    participant.age = calculated_age
                     if participant.age < 18:
                         participant.flow_state = "minor_consent"
                         reply = ("Before we continue: your check-ins will be saved for your assigned counsellor. "
@@ -483,9 +607,19 @@ def process_message(participant, body, external_id):
         elif _wants_counsellor_booking(participant, command, text):
             reply = slot_prompt(participant)
             buttons = () if participant.flow_state == "booking" else (("checkin", "Check in"), ("pause", "Pause"))
-        elif command in ("check in", "check in again", "check-in", "mood"):
+        elif command in (
+            "check in", "check in again", "check-in", "mood", "new chat", "new topic", "start over",
+        ) or (
+            participant.flow_state in ("menu", "booking", "note")
+            and bool(re.fullmatch(
+                r"(?:hi+|hey+|hello+|helo+|sasa+|mambo+|niaje+|habari+|sema+|morning|good\s+(?:morning|afternoon|evening))",
+                command,
+            ))
+        ):
             participant.flow_state = "mood"
-            reply = WELCOME
+            participant.booking_choices = []
+            greeting = f"Karibu tena {participant.display_name}!\n\n" if participant.display_name and command not in ("check in", "check in again", "check-in", "mood") else ""
+            reply = f"{greeting}{WELCOME}"
             buttons = (("mood_1", "1 😔"), ("mood_2", "2 😕"), ("mood_3", "3 😐"), ("mood_4", "4 🙂"), ("mood_5", "5 😃"))
         elif participant.flow_state == "booking":
             reply = select_booking(participant, command)
@@ -567,9 +701,17 @@ def process_message(participant, body, external_id):
             if early_signal:
                 priority, reason, source = early_signal
                 create_alert(participant, priority, reason, source)
+            session_cutoff = participant.consented_at or participant.created_at
+            if latest and latest.recorded_at and latest.recorded_at > session_cutoff:
+                session_cutoff = latest.recorded_at
+            latest_session = participant.sessions.order_by("-created_at").first()
+            if latest_session and latest_session.created_at and latest_session.created_at > session_cutoff:
+                session_cutoff = latest_session.created_at
+            if prev_inbound_at and prev_inbound_at < timezone.now() - timedelta(hours=4):
+                session_cutoff = incoming.received_at
             history = list(participant.inbound_messages.exclude(pk=incoming.pk)
                 .exclude(reply="").exclude(reply_source__in=("", "scripted_workflow", "scripted_safety"))
-                .filter(received_at__gte=participant.consented_at or participant.created_at)
+                .filter(received_at__gte=session_cutoff)
                 .order_by("-received_at").values("body", "reply")[:6])
             if early_signal and early_signal[0] == "high":
                 reply = scripted_reply("urgent", response_language)

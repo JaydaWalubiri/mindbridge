@@ -30,10 +30,13 @@ class WebhookTests(TestCase):
         self.assertFalse(Participant.objects.exists())
 
     def test_opt_in_mood_note_and_session_request(self):
-        for idx, body in enumerate(["Hello", "I agree", "Demo Boy", "19", "3", "A little tired", "Talk to a counsellor"], 1):
+        dob_19 = f"14/05/{date.today().year - 19}"
+        for idx, body in enumerate(["Hello", "I agree", "Demo Boy", dob_19, "3", "A little tired", "Talk to a counsellor"], 1):
             self.assertEqual(self.send(body, f"msg-{idx}").status_code, 200)
         person = Participant.objects.get(wa_id="254700000001")
         self.assertTrue(person.consented)
+        self.assertEqual(person.age, 19)
+        self.assertIsNotNone(person.date_of_birth)
         self.assertEqual(person.moods.count(), 1)
         self.assertEqual(person.moods.first().score, 3)
         self.assertEqual(person.moods.first().note, "A little tired")
@@ -49,7 +52,8 @@ class WebhookTests(TestCase):
 
     def test_mood_rule_requires_three_distinct_consecutive_weeks(self):
         from django.utils import timezone
-        for idx, body in enumerate(["I agree", "Demo Boy", "19"]):
+        dob_19 = f"14/05/{date.today().year - 19}"
+        for idx, body in enumerate(["I agree", "Demo Boy", dob_19]):
             self.send(body, f"onboarding-{idx}")
         person = Participant.objects.get(wa_id="254700000001")
         for days in (14, 7):
@@ -90,7 +94,8 @@ class WebhookTests(TestCase):
 
     @override_settings(TURN_TEMPLATE_NAMESPACE="namespace", TURN_CHECKIN_TEMPLATE_NAME="weekly_checkin")
     def test_weekly_schedule_is_idempotent_and_flags_two_misses(self):
-        for idx, body in enumerate(["I agree", "Demo Boy", "19"]):
+        dob_19 = f"14/05/{date.today().year - 19}"
+        for idx, body in enumerate(["I agree", "Demo Boy", dob_19]):
             self.send(body, f"optin-{idx}")
         person = Participant.objects.get(wa_id="254700000001")
         # The dates represent three weekly cycles since opt-in.
@@ -159,9 +164,17 @@ class ProposalWorkflowTests(TestCase):
         self.client = Client(HTTP_HOST="localhost")
         self.counter = 0
 
+    def dob_str(self, age):
+        today = self.now.date()
+        try:
+            born = today.replace(year=today.year - age)
+        except ValueError:
+            born = today.replace(year=today.year - age, day=28)
+        return born.strftime("%d/%m/%Y")
+
     def person(self, code="TEST-1", age=19):
         person = Participant.objects.create(code=code, display_name="Pending")
-        for body in ["I agree", "Demo Nick", str(age)]:
+        for body in ["I agree", "Demo Nick", self.dob_str(age)]:
             self.say(person, body)
         person.refresh_from_db()
         return person
@@ -199,9 +212,30 @@ class ProposalWorkflowTests(TestCase):
     def test_invalid_age_is_not_stored(self):
         person = self.person(age=12)
         self.assertIsNone(person.age)
+        self.assertIsNone(person.date_of_birth)
         self.assertFalse(person.onboarding_complete)
-        self.say(person,"25")
+        self.assertEqual(person.flow_state, "age_ineligible")
+        # Attempting to retry with an eligible or different DOB in the same session must stay locked
+        self.say(person, self.dob_str(19))
         self.assertIsNone(person.age)
+        self.assertFalse(person.onboarding_complete)
+
+    def test_raw_age_and_invalid_calendar_date_require_full_dob(self):
+        person = Participant.objects.create(code="DOB-CHECK", display_name="Pending")
+        self.say(person, "I agree")
+        prompt = self.say(person, "Tester")
+        self.assertIn("date of birth", prompt.lower())
+        self.assertNotIn("13–24", prompt)
+        reply_raw = self.say(person, "19")
+        self.assertIn("DD/MM/YYYY", reply_raw)
+        self.assertIsNone(person.age)
+        reply_bad = self.say(person, "31/02/2006")
+        self.assertIn("valid date of birth", reply_bad.lower())
+        self.assertIsNone(person.age)
+        self.say(person, self.dob_str(20))
+        self.assertEqual(person.age, 20)
+        self.assertIsNotNone(person.date_of_birth)
+        self.assertTrue(person.onboarding_complete)
 
     def test_slot_booking_and_duplicate_requests(self):
         person = self.person()
@@ -250,7 +284,7 @@ class ProposalWorkflowTests(TestCase):
 
     def test_simulator_writes_demo_records_and_never_queues_delivery(self):
         self.client.force_login(self.admin)
-        for body in ["I agree","Demo Chat","19","3","Counsellor"]:
+        for body in ["I agree", "Demo Chat", self.dob_str(19), "3", "Counsellor"]:
             response=self.client.post(reverse("simulator_message"),json.dumps({"body":body}),content_type="application/json")
             self.assertEqual(response.status_code,200)
         person=Participant.objects.get(is_simulated=True)
