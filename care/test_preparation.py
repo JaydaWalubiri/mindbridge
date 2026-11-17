@@ -105,7 +105,8 @@ class PrepareWorkspaceTests(TestCase):
         self.assertContains(response, '3 counsellors')
     def test_preview_naming_and_live_alert_reflection(self):
         self.prepare(); self.client.force_login(self.admin)
-        for body in ('Hello', 'I agree', 'Kevin', '19', '3', 'I might hurt myself tonight.'):
+        dob_19 = f"14/05/{timezone.localdate().year - 19}"
+        for body in ('Hello', 'I agree', 'Kevin', dob_19, '3', 'I might hurt myself tonight.'):
             response = self.client.post(reverse('simulator_message'), json.dumps({'body': body}), content_type='application/json')
             self.assertEqual(response.status_code, 200)
         person = Participant.objects.get(code=response.json()['code'])
@@ -117,7 +118,8 @@ class PrepareWorkspaceTests(TestCase):
         self.assertFalse(OutboundMessage.objects.exists())
     def test_full_booking_journey_reaches_named_counsellor_dashboard(self):
         self.prepare(); self.client.force_login(self.admin)
-        for body in ('Hello', 'I agree', 'Kevin Kamau', '19', '3', 'School pressure has been difficult.', 'Counsellor'):
+        dob_19 = f"14/05/{timezone.localdate().year - 19}"
+        for body in ('Hello', 'I agree', 'Kevin Kamau', dob_19, '3', 'School pressure has been difficult.', 'Counsellor'):
             response = self.client.post(reverse('simulator_message'), json.dumps({'body': body}), content_type='application/json')
             self.assertEqual(response.status_code, 200)
         person = Participant.objects.get(code=response.json()['code'])

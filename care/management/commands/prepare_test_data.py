@@ -1,6 +1,6 @@
 """Prepare isolated fictional profiles and realistic walkthrough scenarios."""
 import secrets
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
@@ -93,6 +93,7 @@ class Command(BaseCommand):
                 person = Participant(code=code)
             if created or migrated:
                 person.display_name, person.age, person.area = name, age, area
+                person.date_of_birth = date(today.year - age, 5, min(28, 10 + index))
                 person.preferred_language = language
                 person.counsellor = users[owner_index]
                 person.is_simulated = True

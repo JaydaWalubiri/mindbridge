@@ -21,7 +21,7 @@ class ParticipantAdmin(admin.ModelAdmin):
     actions = ["delete_selected"]
 
     def get_readonly_fields(self, request, obj=None):
-        return ("code", "created_at", "consented_at", "minor_assent_at", "last_inbound_at", "deletion_requested_at")
+        return ("code", "date_of_birth", "created_at", "consented_at", "minor_assent_at", "last_inbound_at", "deletion_requested_at")
 
     def has_add_permission(self, request):
         return False
@@ -29,13 +29,19 @@ class ParticipantAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return bool(request.user and (request.user.is_staff or request.user.is_superuser))
 
+    def get_deleted_objects(self, objs, request):
+        deleted_objects, model_count, perms_needed, protected = super().get_deleted_objects(objs, request)
+        if self.has_delete_permission(request):
+            perms_needed.clear()
+        return deleted_objects, model_count, perms_needed, protected
+
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "counsellor":
             from django.contrib.auth import get_user_model
             kwargs["queryset"] = get_user_model().objects.filter(is_active=True, is_staff=False, care_profile__isnull=False)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    list_display = ("code", "display_name", "age", "area", "is_simulated", "counsellor")
+    list_display = ("code", "display_name", "date_of_birth", "age", "area", "is_simulated", "counsellor")
     search_fields = ("code", "display_name", "area")
     list_filter = ("area", "counsellor", "is_simulated")
 

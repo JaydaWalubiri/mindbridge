@@ -43,7 +43,8 @@ class WholeJourneyTests(TestCase):
             HTTP_X_TURN_HOOK_SIGNATURE=signature, HTTP_X_TURN_HOOK_SUBSCRIPTION="whatsapp")
 
     def onboard(self):
-        for value in ("I agree", "Fictional Nick", "19", "3"):
+        dob_19 = f"14/05/{timezone.localdate().year - 19}"
+        for value in ("I agree", "Fictional Nick", dob_19, "3"):
             self.assertEqual(self.post(value).status_code,200)
         return Participant.objects.get(wa_id="254700000001")
 
